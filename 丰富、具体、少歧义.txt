@@ -1,0 +1,44 @@
+丰富、具体、少歧义
+open ai的API接口中，role角色有几种选项可以选择，分别有什么作用？user,system,assistant,function
+Let’s think step by step。让 AI 生成更多相关的内容，构成更丰富的「上文」，从而提升「下文」正确的概率。对涉及计算和逻辑推理等复杂问题，尤为有效
+少bb
+开头，结尾https://www.datalearner.com/blog/1051688829605194
+思维链，注销哪一段后有差异，3.1示例
+自洽性
+提升准确性的几种策略 https://github.com/microsoft/promptbase
+Embeddings
+prompt注入分类检测https://mp.weixin.qq.com/s/zqddET82e-0eM_OCjEtVbQ  https://selfboot.cn/2023/07/28/chatgpt_hacking/
+内容审核API https://dun.163.com/  openai官方的判断接口
+opai官方文档
+ logit_bias={}, 
+seed
+
+chatgpt自己写prompt的魔法
+
+写稿子
+
+
+Embeddings是指将文本或单词映射到一个多维空间中的向量表示。在OpenAI的文档中，Embeddings通常用于表示单词、短语或句子的语义信息。这种向量表示可以捕捉到文本之间的语义相似性和关联性。
+
+Embeddings的作用包括：
+
+语义相似性：Embeddings可以将语义相似的单词或短语映射到相邻的向量空间中，使得它们在向量空间中的距离更近。这有助于模型理解文本的语义含义，从而更好地处理自然语言处理任务。
+
+上下文信息：Embeddings可以捕捉到单词或短语在不同上下文中的含义差异。这有助于模型更好地理解文本的语境，提高模型在自然语言处理任务中的表现。
+
+特征表示：Embeddings可以作为文本特征的表示，用于输入到机器学习模型中进行分类、聚类或其他任务。通过Embeddings，文本可以被表示为机器学习模型所需的数值特征。
+
+总的来说，Embeddings在自然语言处理领域中扮演着重要的角色，能够帮助模型更好地理解和处理文本数据。
+当使用OpenAI的API时，您可以使用Embeddings来扩展模型的知识，并提供上下文信息以帮助模型更好地理解用户的问题。以下是一个使用Embeddings的具体示例：
+{
+  "role": "system",
+  "content": "You are a virtual tourism advisor. These are your notes: <embedding results>"
+},
+{
+  "role": "user",
+  "content": "What are the popular tourist attractions in Paris?"
+}
+
+在这个示例中，我们将Embeddings的结果添加到了系统消息中，以提供关于旅游咨询的上下文信息。当用户发送问题时，模型可以利用Embeddings中的上下文信息来更好地回答用户的问题，从而提供更准确和相关的回复。
+
+通过这种方式，您可以利用Embeddings来扩展模型的知识，并为模型提供更多的上下文信息，以帮助模型更好地理解和回答用户的问题。
