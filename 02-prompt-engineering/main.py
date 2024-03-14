@@ -20,6 +20,7 @@ environ_vars = ast.literal_eval(llm_config)
 # print(type(environ_vars["response_format"]))
 
 
+# 定义chat对话函数
 def get_completion(
     roles,
     prompt,
@@ -27,10 +28,10 @@ def get_completion(
 ):
     messages = [{"role": roles, "content": prompt}]
     response = client.chat.completions.create(
-        model=configs["model"],
-        response_format=ast.literal_eval(configs["response_format"]),
+        model=configs["model3"],
         messages=messages,
-        max_tokens=500,
+        response_format=configs["response_json"],
+        max_tokens=configs["token1000"],
     )
     print(response.choices[0].message.content)
     print(response)
@@ -38,21 +39,53 @@ def get_completion(
     # return response.choices[0].message.content
 
 
-#
+# 定义生成prompt函数
 def generate_prompt(
-    instruction, output_format="", input_text="", one_shot_learn="", context=""
+    init_roles="",
+    instruction="",
+    input_text="",
+    one_shot_learn="",
+    context="",
+    output_format="json_object",
 ):
-    # instruction 指令, output_format 输出格式, input_text 用户输入, one_shot_lear 举例, context 上下文
+    # init_roles 定义角色，instruction 任务描述指令, output_format 输出格式约定, input_text 用户输入内容, one_shot_lear 举例,
+    # context 上下文即任务背景（多轮会话历史）
     # output_format,input_text,one_shot_learn,context参数指定默认值为""
     prompt = f"""
+        {init_roles}
+        ----EOF-----
+
+        你的任务是:
         {instruction}
+        ----EOF-----
+
+        要求输出的格式为:
         {output_format}
+        ----EOF-----
+
+        下面的内容是用户输入的内容,如果用户输入为空请忽略:
         {input_text}
+        ----EOF-----
+
+        下面的内容是可供参考的示例,如果参考示例为空请忽略:
         {one_shot_learn}
+        ----EOF-----
+
+        下面的内容是历史对话内容,如果历史对话为空请忽略:
+        {context}
+        ----EOF-----
+
+
+        NO COMMENTS. NO ACKNOWLEDGEMENTS
+        Let’s think step by step.
+        Let’s think step by step.
+        Let’s think step by step.
     """
     print(prompt)
     return prompt
 
+
+init_roles = "你是一位资深电信客户服务人员"
 
 instruction = """
 你的任务是识别用户对手机流量套餐产品的选择条件。
@@ -85,4 +118,4 @@ prompt_string = generate_prompt(
 )
 
 # userInput = "你是基于哪个模型训练出来的,请使用JSON答复"
-get_completion("user", prompt_string, environ_vars)
+# get_completion("user", prompt_string, environ_vars)
