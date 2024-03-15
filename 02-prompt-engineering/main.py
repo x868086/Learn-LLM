@@ -30,7 +30,7 @@ def get_completion(
     response = client.chat.completions.create(
         model=configs["model3"],
         messages=messages,
-        response_format=configs["response_json"],
+        response_format={"type": configs["response_json"]},
         max_tokens=configs["token1000"],
     )
     print(response.choices[0].message.content)
@@ -88,15 +88,15 @@ def generate_prompt(
 init_roles = "你是一位资深电信客户服务人员"
 
 instruction = """
-你的任务是识别用户对手机流量套餐产品的选择条件。
-每种流量套餐产品包含三个属性：名称，月费价格，月流量。
-根据用户输入，识别用户在上述三种属性上的倾向。
+    你的任务是识别用户对手机流量套餐产品的选择条件。
+    每种流量套餐产品包含三个属性：名称，月费价格，月流量。
+    根据用户输入，识别用户在上述三种属性上的倾向。
 """
 output_format = """
-以 JSON 格式输出
+    以 JSON 格式输出
 """
 input_text = """
-办个100G的套餐。
+    办个100G的套餐。
 """
 
 one_shot_learn = """
@@ -118,4 +118,4 @@ prompt_string = generate_prompt(
 )
 
 # userInput = "你是基于哪个模型训练出来的,请使用JSON答复"
-# get_completion("user", prompt_string, environ_vars)
+get_completion("user", prompt_string, environ_vars)
