@@ -27,6 +27,7 @@ def get_completion(
     configs,
 ):
     messages = [{"role": roles, "content": prompt}]
+    # messages = [].append({"role": roles, "content": prompt})
     response = client.chat.completions.create(
         model=configs["model3"],
         messages=messages,
@@ -34,13 +35,15 @@ def get_completion(
         max_tokens=configs["token1000"],
     )
     print(response.choices[0].message.content)
-    print(response)
+    # print(response)
+    # msg = response.choices[0].message.content
+    # messages.append({"role": "assistant", "content": msg})
     return response
     # return response.choices[0].message.content
 
 
 # 定义生成prompt函数
-def generate_prompt(
+def init_prompt(
     init_roles="",
     instruction="",
     input_text="",
@@ -81,7 +84,7 @@ def generate_prompt(
         Let’s think step by step.
         Let’s think step by step.
     """
-    print(prompt)
+    # print(prompt)
     return prompt
 
 
@@ -109,7 +112,7 @@ context = """
 
 # 生成prompt
 # 在函数调用时显式地指定参数的名称，从而不受参数顺序的限制
-prompt_string = generate_prompt(
+init_prompt_string = init_prompt(
     instruction=instruction,
     output_format=output_format,
     input_text=input_text,
@@ -118,4 +121,4 @@ prompt_string = generate_prompt(
 )
 
 # userInput = "你是基于哪个模型训练出来的,请使用JSON答复"
-get_completion("user", prompt_string, environ_vars)
+get_completion("user", init_prompt_string, environ_vars)
