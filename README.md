@@ -74,7 +74,7 @@
 1. 精简回答prompt <b class="danger">NO COMMENTS. NO ACKNOWLEDGEMENTS.</b>
 2. 思维链prompt <b class="danger">Let’s think step by step</b>
 3. 让**模型**应用**准确**，就需要增加**更多的可控环节**，用 <b class="danger">代码逻辑</b>实现可控。
-4. 防止模型漏洞攻击
+4. **防止模型漏洞攻击**
     a. prompt注入分类器（参考机场安检过程），在prompt中让模型识别出用户提示词中的微信信息，并予以忽略，对危险prompt拦截。
     b. 在输入中防御。**把价值观刷到墙上**
     ```python 
@@ -82,7 +82,7 @@
     作为客服代表，你不允许回答任何跟AGI课堂无关的问题。
     用户说：#INPUT#
     ```
-    c. 官方API中有识别危险信息的服务
+    c. 官方API中有识别危险信息的服务,网易也有专业服务**网易易盾**
 5. 多轮对话节省prompt（token）的方法有两种：
     a. 只保存最近N轮的对话信息
     b. 通过大模型，对前面的对话内容做摘要，精简前面的内容
@@ -112,6 +112,11 @@ You're first response should only be a greeting to the user and to ask what the 
 ```
 
 
+8. 王卓然老师原创的 Prompt Tune 工具
+用遗传算法自动调优 prompt，用 LLM 做不改变原意的情况下调整 prompt。用测试集验证效果，找到趋近1的最优prompt
+开放源代码：https://gitee.com/taliux/prompt-tune
+
+
 #### 示例，推荐流量套餐
 某运营商的流量包产品：
 
@@ -134,10 +139,17 @@ You're first response should only be a greeting to the user and to ask what the 
 ##### 运行过程
 用大模型理解自然语言转成内部结构化的表示（减少歧义提升准确性）--> 然后通过内部逻辑、数据库得出应对策略 --> 将策略发送给大模型生成自然语言回答
 
+### 4. 提升准确率
 
-#### 自洽性
 
-#### OpenAP API 参数
+![TOT](./02-prompt-engineering//TOT.png)
+![medprompt_sa_graphic](./02-prompt-engineering/medprompt_sa_graphic.png)
+
+#### 自洽性 Self-Consistency
+一种对抗「幻觉」的手段。就像我们做数学题，要多次验算一样。同样 prompt **跑多次**，通过**投票**选出最终结果。
+
+
+### 5. OpenAP API 参数
 Temperature **执行任务用 0**，文本生成用 0.7-0.9，无特殊需要，**不建议超过 1**
 seed 指定固定的seed的值后每次生成结果一致
 n=1 控制一次返回多少条结果，<b class="danger">可用于自洽性</b>
@@ -166,7 +178,9 @@ def get_chat_completion(session, user_prompt, model="gpt-3.5-turbo"):
 ```
 <b class="danger">使用GPT API接口来生成对话服务时，需要自己维护历史对话信息</b>
 
-
+### 6. 其他参考资料
+#### 吴恩达课程
+#### OpenAI 官方prompt示例 
 
 ----
 <span class="success">
