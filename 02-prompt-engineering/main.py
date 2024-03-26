@@ -1,6 +1,7 @@
 import os
 from openai import OpenAI
 import ast
+import json
 
 # 加载 .env 到环境变量
 from dotenv import load_dotenv, find_dotenv
@@ -25,6 +26,16 @@ env_max_tokens = environ_vars["token1000"]
 
 # 定义多轮会话历史
 chat_history = []
+
+
+# 定义打印消息函数
+def print_json(msglist):
+    if hasattr(msglist, "model_dump_json"):
+        msg = json.loads(msglist.model_dump_json())
+    if isinstance(msglist, (list, dict)):
+        print(json.dumps(msglist, indent=4, ensure_ascii=False))
+    else:
+        print(msg)
 
 
 # 定义chat对话函数
@@ -85,13 +96,9 @@ def init_prompt(
 init_roles = "你是一位资深电信客户服务人员"
 
 instruction = """
-    你的任务是识别用户对手机流量套餐产品的选择条件。
-    每种流量套餐产品包含三个属性：名称，月费价格，月流量。
-    根据用户输入，识别用户在上述三种属性上的倾向。请使用中文回答。
+你的任务是识别用户对手机流量套餐产品的选择条件。每种流量套餐产品包含三个属性：名称，月费价格，月流量。根据用户输入，识别用户在上述三种属性上的倾向。请使用中文回答。
 """
-output_format = """
-    以 JSON 格式输出
-"""
+output_format = """以 JSON 格式输出"""
 
 one_shot_learn = """"""
 
@@ -109,4 +116,7 @@ get_completion("system", init_prompt_string)
 
 get_completion("user", "办个100G的套餐")
 
+print("----------------")
 print(chat_history)
+print("----------------")
+print_json(chat_history)
