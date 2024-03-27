@@ -86,14 +86,17 @@
 5. 多轮对话节省prompt（token）的方法有两种：
     a. 只保存最近N轮的对话信息
     b. 通过大模型，对前面的对话内容做摘要，精简前面的内容
-6. 将文档中的数值组成的**表格**转换成**prompt**的最优方法是。字段1字段值b,字段2字段值b 自定义分隔符
+6. 在与chatgpt模型的对话中，prompt明确约束只输出JSON格式内容，不输出无关内容，但有时候仍然输出```json开头的JSON格式，解决这个问题方法如下：
+    1. prompt中增加明确指令："直接以JSON对象输出结果，**不要添加任何前缀或装饰性文本，比如```json前缀** "
+    2. 对返回的内容使用正则表达式过滤无关字符
+7. 将文档中的数值组成的**表格**转换成**prompt**的最优方法是。字段1字段值b,字段2字段值b 自定义分隔符
 
     |   名称   | 流量（G/月） | 价格（元/月） | 适用人群 |
     | :------: | -----------: | ------------: | :------: |
     | 经济套餐 |           10 |            50 |  无限制  |
 比如：名称,经济套餐; 流量（G/月）,10; 价格（元/月）,50; 适用人群,无限制
 
-7. 用prompt调优prompt
+8. 用prompt调优prompt
 用以下这段神奇的咒语，让 ChatGPT 帮你写 Prompt。贴入 ChatGPT 对话框即可。这其实就已经触发了传说中的 agent……
 ```python 
 
@@ -112,7 +115,7 @@ You're first response should only be a greeting to the user and to ask what the 
 ```
 
 
-8. 王卓然老师原创的 Prompt Tune 工具
+9. 王卓然老师原创的 Prompt Tune 工具
 用遗传算法自动调优 prompt，用 LLM 做不改变原意的情况下调整 prompt。用测试集验证效果，找到趋近1的最优prompt
 开放源代码：https://gitee.com/taliux/prompt-tune
 
@@ -146,7 +149,27 @@ You're first response should only be a greeting to the user and to ask what the 
 ![medprompt_sa_graphic](./02-prompt-engineering/medprompt_sa_graphic.png)
 
 #### 自洽性 Self-Consistency
-一种对抗「幻觉」的手段。就像我们做数学题，要多次验算一样。同样 prompt **跑多次**，通过**投票**选出最终结果。
+一种对抗「幻觉」的手段。就像我们做数学题，要多次验算一样。同样 prompt **跑多次**，通过**投票**选出最终结果。使用<b class="danger">自洽性需提高temperature的值</b> ,更高的随机性生成更多的结果。
+利用以下代码多次调用，确定最终结果
+```python 
+for _ in range(5):
+    prompt = f"{instruction}\n\n{output_format}\n\n请一步一步分析:\n{context}"
+    print(f"------第{_+1}次------")
+    response = get_completion(prompt)
+    print(response)
+
+#输出内容
+------第1次------
+{"accurate":true}
+------第2次------
+{"accurate":false}
+------第3次------
+{"accurate":false}
+------第4次------
+{"accurate":true}
+------第5次------
+{"accurate": false}
+```
 
 
 ### 5. OpenAP API 参数

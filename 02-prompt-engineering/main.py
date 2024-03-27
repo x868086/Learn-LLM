@@ -31,11 +31,13 @@ chat_history = []
 # 定义打印消息函数
 def print_json(msglist):
     if hasattr(msglist, "model_dump_json"):
-        msg = json.loads(msglist.model_dump_json())
+        # 如果msglist是通过pydantic模型定义的对象，有model_dump_json属性，则将其转换成json字符串，然后用json.loads方法转成python对象dict
+        msglist = json.loads(msglist.model_dump_json())
+        # 如果msglist是list或者是dict创建的实例，则使用json.dumps方法转成json格式字符串，indent=4表示缩进4个空格
     if isinstance(msglist, (list, dict)):
         print(json.dumps(msglist, indent=4, ensure_ascii=False))
     else:
-        print(msg)
+        print(msglist)
 
 
 # 定义chat对话函数
@@ -47,7 +49,7 @@ def get_completion(
     chat_history.append({"role": roles, "content": prompt})
     response = client.chat.completions.create(
         model=env_model,
-        messages=chat_history,
+        messages=chat_history,  # 每次对话把多轮会话消息带上
         response_format={"type": env_response_format},
         max_tokens=env_max_tokens,
     )
@@ -56,7 +58,6 @@ def get_completion(
     msg = response.choices[0].message.content
     chat_history.append({"role": "assistant", "content": msg})
     return response
-    # return response.choices[0].message.content
 
 
 # 定义初始化生成prompt函数
@@ -83,12 +84,12 @@ def init_prompt(
 
         下面的内容是可供参考的示例,如果参考示例为空请忽略:
         {one_shot_learn}
-----EOF-----
+----示例结束-----
 
+        Let’s think step by step.
+        Let’s think step by step.
+        Let’s think step by step.
         NO COMMENTS. NO ACKNOWLEDGEMENTS
-        Let’s think step by step.
-        Let’s think step by step.
-        Let’s think step by step.
     """
     return prompt
 
@@ -116,7 +117,4 @@ get_completion("system", init_prompt_string)
 
 get_completion("user", "办个100G的套餐")
 
-print("----------------")
-print(chat_history)
-print("----------------")
 print_json(chat_history)
