@@ -1,3 +1,4 @@
+import os
 import json
 from openai import OpenAI
 from dotenv import load_dotenv, find_dotenv
@@ -6,9 +7,10 @@ _ = load_dotenv(find_dotenv())
 client = OpenAI()
 
 # 只有 gpt-4 能跑动思维树。实验室不支持 gpt-4，自行实验请在本地运行
+model3 = os.environ.get("model3")
+model4 = os.environ.get("model4")
 
-
-def get_completion(prompt, model="gpt-4", temperature=0):
+def get_completion(prompt, model=model3, temperature=0):
     messages = [{"role": "user", "content": prompt}]
     response = client.chat.completions.create(
         model=model,
@@ -24,6 +26,8 @@ def get_completion(prompt, model="gpt-4", temperature=0):
 #     response = get_completion(prompt)
 #     return json.loads(response.replace("`",'').replace("json",""))
 
+# {'速度': 3, '耐力': 3, '力量': 2}
+
 def performance_analyser(text):
     prompt = f"{text}\n请根据以上成绩，分析候选人在速度、耐力、力量三方面素质的分档。分档包括：强（3），中（2），弱（1）三档。\
                 \n直接以JSON对象输出结果，不要添加任何前缀或装饰性文本，比如```json前缀，其中key为素质名，value为以数值表示的分档。"
@@ -35,7 +39,8 @@ def possible_sports(talent, category):
     prompt = f"需要{talent}强的{
         category}运动有哪些。给出10个例子，以array形式输出。确保输出能由json.loads解析。"
     response = get_completion(prompt, temperature=0.8)
-    return json.loads(response)
+    # return json.loads(response)
+    return json.loads(response.replace("`",'').replace("json",""))
 
 
 def evaluate(sports, talent, value):
@@ -52,7 +57,8 @@ def report_generator(name, performance, talents, sports):
     _talents = {k: level[v-1] for k, v in talents.items()}
     prompt = f"""已知{name}{performance}\n身体素质：{
         _talents}。\n生成一篇{name}适合{sports}训练的分析报告。"""
-    response = get_completion(prompt, model="gpt-3.5-turbo")
+    # response = get_completion(prompt, model="gpt-3.5-turbo")
+    response = get_completion(prompt, model=model3)
     return response
 
 
@@ -67,9 +73,10 @@ print(talents)
 cache = set()
 # 深度优先
 
+
 # 第一层节点
 for k, v in talents.items():
-    if v < 3:  # 剪枝
+    if v < 3:  # 剪枝,能力值小于3的不考虑
         continue
     leafs = possible_sports(k, category)
     print(f"==={k} leafs===")
@@ -92,3 +99,7 @@ for k, v in talents.items():
             print("****")
             print(report)
             print("****")
+
+
+# 1. 根据现有情况，对各能力值进行分析，得到一个字典 talents，标记不同能力对应的分值
+# 2. 找出能力值大于等于3的能力，让模型举例生成对应的运动array

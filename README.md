@@ -170,7 +170,8 @@ for _ in range(5):
 ------第5次------
 {"accurate": false}
 ```
-
+#### 思维树 Tree-of-Thought
+让大模型把问题展开，展开后，在里面找每个节点，判断出哪个节点离结果最近。再深挖迭代这个过程。
 
 ### 5. OpenAP API 参数
 Temperature **执行任务用 0**，文本生成用 0.7-0.9，无特殊需要，**不建议超过 1**
@@ -204,6 +205,70 @@ def get_chat_completion(session, user_prompt, model="gpt-3.5-turbo"):
 ### 6. 其他参考资料
 #### 吴恩达课程
 #### OpenAI 官方prompt示例 
+
+## 2. AI-programming
+### AI编程场景
+其中在软件开发过程中，已验证能明确提效的场景：
+- 市场调研
+- 需求分析
+- PRD 撰写
+- 图形元素绘制
+- 技术选型
+- 从需求文本生成代码
+- <strong>从设计图生成代码</strong>
+- 代码审查
+- 编写测试用例
+- 运维
+- <strong>API 文档调用</strong>
+- <strong>协议解析</strong>
+- 跨语言迁移：两周的时间，2 个同事将一个 40 个 API 接口的 go 工程迁移成一个 java 工程
+
+
+<b class="alert success">
+使用技巧：</br>
+1. 所有 prompt engineering 的技巧都有效，可以把代码、错误信息直接粘贴进去</br>
+2. 任何技术相关的问题都可以问，比自己搜索效率高很多
+</b>
+
+参考：ChatALL 大量依赖 GPT-4。过程实录：https://chat.openai.com/share/ecfafa99-aaad-4432-a40c-81c261376758 （对话轮次非常多加载慢，所以几乎总是 404）。如果打不开，别到群里问题，看[这个图](./03-AI-programming/gpt-4-chatall.png)吧
+
+### AI 编程的基本原理
+<b class="danger">编程能力是大模型各项能力的天花板</b>
+
+- 「编程」是目前大模型能力最强的垂直领域，甚至超越了对「自然语言」本身的处理能力。因为：
+
+  - 训练数据质量高
+  - 结果可衡量
+  - 编程语言无二义性
+
+- 知道怎么用好 AI 编程，了解它的能力边界、使用场景，就能类比出在其他领域 AI 怎么落地，能力上限在哪
+  - 此观点是我们原创，在分享过数次后，GitHub 官方发了一篇文章：[How to build an enterprise LLM application: Lessons from GitHub Copilot](https://github.blog/2023-09-06-how-to-build-an-enterprise-llm-application-lessons-from-github-copilot/)。当然，这只是巧合。
+
+##### 工作原理
+
+- 模型层：最初使用 OpenAI Codex 模型，它也是 GPT-3.5、GPT-4 的「一部分」。[现在已经完全升级，模型细节未知](https://github.blog/2023-07-28-smarter-more-efficient-coding-github-copilot-goes-beyond-codex-with-improved-ai-model/)。
+
+  - “The first model that OpenAI gave us was a Python-only model,” Ziegler remembers. “Next we were delivered a JavaScript model and a multilingual model, and it turned out that the Javascript model had particular problems that the multilingual model did not. It actually came as a surprise to us that the multilingual model could perform so well. But each time, the models were just getting better and better, which was really exciting for GitHub Copilot’s progress.”
+
+- 应用层： prompt engineering。Prompt 中包含：
+
+  1. 组织上下文：光标前和光标后的代码片段
+  1. 获取代码片段：其它相关代码片段。当前文件和其它打开的 tab 里的代码被切成每个 60 行的片段，用 [Jaccard 相似度](https://zh.wikipedia.org/wiki/%E9%9B%85%E5%8D%A1%E5%B0%94%E6%8C%87%E6%95%B0)评分，取高分的
+     - 为什么是打开的 tabs
+     - 多少个 tabs 是有效的呢？ **默认20个tab**
+  1. 修饰相关上下文：被取用的代码片段的路径。用注释的方式插入，例如：`# filepath: foo/bar.py`，或者 `// filepath: foo.bar.js`
+  1. 优先级：根据一些代码常识判断补全输入内容的优先级
+
+- 补全格式：在函数定义、类定义、if-else 等之后，会补全整段代码，其它时候只补全当前行
+![completion](./03-AI-programming/life-of-a-completion.webp)
+
+##### 了解更多
+
+- [Inside GitHub: Working with the LLMs behind GitHub Copilot](https://github.blog/2023-05-17-inside-github-working-with-the-llms-behind-github-copilot/)
+- [How GitHub Copilot is getting better at understanding your code](https://github.blog/2023-05-17-how-github-copilot-is-getting-better-at-understanding-your-code/)
+- [A developer’s guide to prompt engineering and LLMs](https://github.blog/2023-07-17-prompt-engineering-guide-generative-ai-llms/)
+
+
 
 ----
 <span class="success">
