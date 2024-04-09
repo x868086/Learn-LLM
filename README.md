@@ -244,7 +244,7 @@ def get_chat_completion(session, user_prompt, model="gpt-3.5-turbo"):
 - 知道怎么用好 AI 编程，了解它的能力边界、使用场景，就能类比出在其他领域 AI 怎么落地，能力上限在哪
   - 此观点是我们原创，在分享过数次后，GitHub 官方发了一篇文章：[How to build an enterprise LLM application: Lessons from GitHub Copilot](https://github.blog/2023-09-06-how-to-build-an-enterprise-llm-application-lessons-from-github-copilot/)。当然，这只是巧合。
 
-##### 工作原理
+#### 工作原理
 
 - 模型层：最初使用 OpenAI Codex 模型，它也是 GPT-3.5、GPT-4 的「一部分」。[现在已经完全升级，模型细节未知](https://github.blog/2023-07-28-smarter-more-efficient-coding-github-copilot-goes-beyond-codex-with-improved-ai-model/)。
 
@@ -267,6 +267,42 @@ def get_chat_completion(session, user_prompt, model="gpt-3.5-turbo"):
 - [Inside GitHub: Working with the LLMs behind GitHub Copilot](https://github.blog/2023-05-17-inside-github-working-with-the-llms-behind-github-copilot/)
 - [How GitHub Copilot is getting better at understanding your code](https://github.blog/2023-05-17-how-github-copilot-is-getting-better-at-understanding-your-code/)
 - [A developer’s guide to prompt engineering and LLMs](https://github.blog/2023-07-17-prompt-engineering-guide-generative-ai-llms/)
+
+
+##### github copilot 使用技巧
+1. 写测试用例时，只需要在声明函数名时，前面加上test_  AI会自动补全测试用例代码
+2. 根据注释写代码，写好注释，AI会自动补全代码。这种方法不太建议使用，因为注释里面写的是针对AI的prompt，不太适合人类阅读。如果需要从需求生成代码，可以考虑使用 **Copilot Chat**。
+    - chat对话框中输入`/`可以使用特殊指令
+    - 在需要插入代码的地方或者选某块代码块，输入`ctrl+i` 呼出Copilot Chat
+3. 先写代码，**代码有了再写注释**，更AI理解起来更准确，更省力
+4. **改写**当前代码，可**另起一块**新写，AI补全得更准，完成后**再删旧代码**
+3. `Cmd/Ctrl + →` 只接受一个 token
+4. 如果有旧代码希望被参考，就把代码文件在新tab 页里打开
+
+#### AI编程的效能
+<b class="alert success">
+AI 能力定律：
+AI 能力的上限，是使用者的判断力
+</b>
+
+$\text{AI 能力} = \min(\text{AI 能力}, \text{使用者判断力})$
+
+<b class="alert success">
+AI 提效定律：AI 提升的效率，与使用者的判断力成正比，与生产力成反比
+</b>
+
+$\text{效率提升幅度} = \frac{\text{使用者判断力}}{\text{使用者生产力}}$
+
+<b class="alert success">
+编码人员的判断力 = 需求的理解准确度 * 代码的阅读量
+</b>
+
+$\text{效率提升幅度} = \frac{\text{需求的理解准确度} · \text{代码的阅读量}}{\text{自己手写代码的速度}}$
+
+
+- 使用者的判断力，是最重要的
+- 提升判断力，比提升实操能力更重要，眼高手低的福音
+- 广阔的视野是判断力的养料
 
 
 
