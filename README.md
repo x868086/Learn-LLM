@@ -226,9 +226,16 @@ def get_chat_completion(session, user_prompt, model="gpt-3.5-turbo"):
 
 <b class="alert success">
 使用技巧：</br>
+0. 写需求文档时，先写某个细化功能的需求（或者用户故事），让AI先协助生成或补全故事，让AI进一步完善细节。</br>
 1. 所有 prompt engineering 的技巧都有效，可以把代码、错误信息直接粘贴进去</br>
-2. 任何技术相关的问题都可以问，比自己搜索效率高很多
+2. 任何技术相关的问题都可以问，比自己搜索效率高很多 </br>
+3. 给AI发送已有的API接口文档，实现对应需求，AI可以自动抓取文档。
 </b>
+
+
+<b class="danger">
+比如：
+https://docs.binance.us/#WEBSOCKET-STREAMS 根据以上接口文档内容，编写一段消息订阅java程序</b>
 
 参考：ChatALL 大量依赖 GPT-4。过程实录：https://chat.openai.com/share/ecfafa99-aaad-4432-a40c-81c261376758 （对话轮次非常多加载慢，所以几乎总是 404）。如果打不开，别到群里问题，看[这个图](./03-AI-programming/gpt-4-chatall.png)吧
 
@@ -276,7 +283,7 @@ def get_chat_completion(session, user_prompt, model="gpt-3.5-turbo"):
     - 在需要插入代码的地方或者选某块代码块，输入`ctrl+i` 呼出Copilot Chat
 3. 先写代码，**代码有了再写注释**，更AI理解起来更准确，更省力
 4. **改写**当前代码，可**另起一块**新写，AI补全得更准，完成后**再删旧代码**
-3. `Cmd/Ctrl + →` 只接受一个 token
+3. ` Alt + ] `查看下一个建议，` Alt + [` 查看上一个建议，` Cmd/Ctrl + → ` 只接受一个 token即部分建议
 4. 如果有旧代码希望被参考，就把代码文件在新tab 页里打开
 
 #### AI编程的效能
@@ -304,6 +311,9 @@ $\text{效率提升幅度} = \frac{\text{需求的理解准确度} · \text{代�
 - 提升判断力，比提升实操能力更重要，眼高手低的福音
 - 广阔的视野是判断力的养料
 
+#### AI编程技巧
+- 先以**架构师**的身份，让AI辅助，对架构进行选型： 通过需求文档和业务文档，让 AI 给出架构的建议。**先将整体需求细化成一个个具体的需求，足够细化，细化到要么是一个接口，要么是一个函数**。
+- 然后以开发者的身份，让 AI 辅助你写业务代码 （逐层拆分向下写)
 
 
 ----
