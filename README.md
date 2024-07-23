@@ -54,6 +54,8 @@
 <b class="success">把AI当人看</b>
 <b class="success">把AI当人看</b>
 
+<b class="danger">知道哪些问题用提示词工程解决更高效，哪些用传统编程解决更高效</b>
+
 ### 1. prompt调优
 <b class="success">具体、丰富、少歧义</b>
 
