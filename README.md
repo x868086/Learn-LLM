@@ -325,6 +325,11 @@ $\text{效率提升幅度} = \frac{\text{需求的理解准确度} · \text{代�
 - 然后以开发者的身份，让 AI 辅助你写业务代码 （逐层拆分向下写)
 
 
+
+## 3. Funciton Calling 结构化输出
+### 
+
+
 ----
 <span class="success">
     test asdfds adasf dfas 
