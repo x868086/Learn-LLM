@@ -325,6 +325,16 @@ $\text{效率提升幅度} = \frac{\text{需求的理解准确度} · \text{代�
 - 然后以开发者的身份，让 AI 辅助你写业务代码 （逐层拆分向下写)
 
 
+
+## 3. Function Calling 结构化输出
+<b class="alert success">
+让大模型链接外部系统，是通过自然语言来实现的，不需要给大模型编写特定的代码让其与外部系统API对接，只需要将外部系统API的能力用自然语言进行描述，大模型就能判断出什么时候调用API。
+</b>
+
+
+
+
+
 ----
 <span class="success">
     test asdfds adasf dfas 
