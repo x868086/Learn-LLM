@@ -49,6 +49,16 @@
 </style>
 
 # Learn-LLM
+
+## 0. 大模型 to B 开发的四个技术方向
+1. Prompt 提示词工程
+2. AI agent 开发（根据任务来自动完成目标）
+3. 对话系统chatbot开发（智能客服系统，问诊系统，法律咨询等）
+4. 4.大模型微调（微调行业垂直模型）
+
+<b class="info">学习路线</b>[聚客AI学习路线](./01/AI大模型学习路线.pdf)
+
+
 ## 1. prompt-engineering
 <b class="success">把AI当人看</b>
 <b class="success">把AI当人看</b>
@@ -339,10 +349,76 @@ $\text{效率提升幅度} = \frac{\text{需求的理解准确度} · \text{代�
 
 
 
-## 4.RAG 检索增强生成
+## 4.RAG 检索增强生成 Retrieval Augumented Generation
+
+#### LLM的局限性
+1. LLM的知识不是实时的
+2. LLM不具备私有场景/专业领域的知识
+
+#### 检索增强生成
+通过**检索**的方法来**增强**生成**模型的能力**
+<b class="success">RAG的流程类似开卷考试。让 LLM 先翻书，再回答问题。</b>
+![RAG原理](./04-RAG/RAG.png)
+
+#### RAG的优势
+私有数据，数据实时性，问答来源的可解释性，降低幻觉。
+
+#### 一、RAG系统的基本搭建流程
+1. **load 文档加载**（pdf,docx,html,video,voice,excel）
+2. **split 文档切分** 
+   a. 拆分后的词组或句子太长不利于模型理解和答案抽取，如果太短无法保证原文内容语义的连贯性。 实际使用中使用 **langchain** 开发框架定义 **chunk overlap** 来控制切分文档时重叠区域的大小。
+   b. 问题的答案可能跨越两个片段
+3. **embed 向量化** 
+   将切分后的文档片段使用embedding模型进行向量化，常用的embedding模型有 text-embedding-3-large, text-embedding-3-small
+4. **store 向量化存储** 将向量数据存储到向量数据库中
+
+**Query -> 检索 -> Prompt -> LLM -> 回复**
+<b class="alert success">RAG过程：1. 向量数据库中存放的有文档片段原文和文档片段的向量数据（向量会作为索引进行匹配）。
+2. 用户的问题首先会经过向量化处理（转换成一段向量数据），然后用这个问题的向量数据作为索引，去向量数据库中找，与之最匹配（向量空间的余弦夹角最小值或欧氏距离最小值）的文档片段的向量数据索引。
+3. 找到之后将其对应的片段原文+提问原文拼接成prompt发送给LLM，让LLM生成答案。
+</b>
+
+##### 1.1 文档的加载与切分
+    这段代码定义了一个名为 extract_text_from_pdf 的函数，用于从 PDF 文件中提取文本，并根据指定条件（如页码和最小行长度）对提取出的文字进行处理。以下是代码的详细解释：
+
+    函数接受三个参数：
+
+    filename: PDF 文件的路径。
+    page_numbers: 需要提取文本的页码列表，默认为 None，表示提取所有页。
+    min_line_length: 行的最小长度，默认为 1。
+    定义了一些变量用于存储结果：
+
+    paragraphs: 存储最终整理后的段落列表。
+    buffer: 临时存储当前行及其前一行的组合文本。
+    full_text: 存储整篇文档的文本。
+    使用 enumerate(extract_pages(filename)) 遍历 PDF 的每一页。这里假设 extract_pages 是一个已定义好的函数或方法，它返回 PDF 中每一页的布局对象。
+
+    对于每一页，如果指定了 page_numbers 并且当前页码不在其中，则跳过该页。
+
+    遍历每一页中的元素，如果元素是 LTTextContainer 类型（假设这是 PyPDF2 或类似库中的一个类，用于表示文本容器），则将其文本添加到 full_text 中。
+
+    将 full_text 按行分割，并遍历每一行文本：
+
+    如果行的长度大于等于 min_line_length，则将其与前一行合并（如果前一行以连字符结尾则去除连字符），并存入 buffer。
+    如果行为空（长度小于 min_line_length），且 buffer 不为空，则将 buffer 中的内容添加到 paragraphs 列表中，并清空 buffer。
+    最后检查 buffer 是否还有剩余内容，如果有，则将其添加到 paragraphs 中。
+
+    函数返回 paragraphs 列表。
+
+文档中的表格处理：
+1.将每页PDF转成图片
+2.在图片中采用OCR识别表格
+3.将表格内容向量化
+
 盘古、混元、文心、通义（基座，基础模型）
 基础模型+行业数据+训练+微调=行业垂直模型（付费）
 通过行业垂直模型+RAG 来实现场景落地
+
+rerank是，将多个由向量索引检索到的原文结果和问题原文进行相关性排序，找出关联性最大的一项。
+
+检索结果重排序：通过排序模型对query和document重新打分排序，解决多个满足query的答案没有被排在最前面。
+
+问答对类型的文档，可以将问题向量化来兜住用户的提问，也可以将问题和答案一起向量化。
 
 
 
