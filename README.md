@@ -341,15 +341,72 @@ $\text{效率提升幅度} = \frac{\text{需求的理解准确度} · \text{代�
 让大模型链接外部系统，是通过自然语言来实现的，不需要给大模型编写特定的代码让其与外部系统API对接，只需要将外部系统API的能力用自然语言进行描述，大模型就能判断出什么时候调用API。
 </b>
 
+在大型语言模型（LLM）中，function calling 中的函数是由大模型间接调用执行的，实际的执行通常由后端服务或中间件来完成。具体来说，这个过程可以分为以下几个步骤：
+1. 模型生成调用指令：当用户与模型交互时，模型根据输入和上下文生成一个调用特定函数的指令。这个指令通常包含函数名和所需的参数。
+比如模型生成以下文本或结构化数据，提示系统调用某个函数
+```json
+{
+    "function": "get_weather",
+    "parameters": {
+      "location": "Beijing",
+      "date": "2023-10-01"
+    }
+}
+```
+2. 传递给后端服务：生成的调用指令被传递给后端服务或中间件。后端服务负责实际执行这些函数。
+实际负责调用和执行定义函数的部分，通常涉及中间软件、API调用框架或特定应用实现。
+    工作原理：
+    - 解析指令：模型通过与用户的对话，识别出当与用户的对话中，是否要调用预先定义的函数。如果需要则生成调用函数的指令，包含函数名称和参数。
+    - 调用合适的函数：在开发chat的业务逻辑中，获取模型返回的内容即上面解析指令后返回的内容，如果模型返回的内容包含函数调用指令，则在response中通过获取到函数名和参数来执行具体的函数。
+    - 返回结果：执行后，将函数的输出结果传递回模型。
+3. 执行函数：后端服务调用相应的函数，执行具体的操作（如查询数据库、调用API、执行计算等）。
+4. 返回结果：函数执行的结果被返回给模型。执行结果可以作为模型输出的一部分，向用户显示或被进一步使用。
+5. 模型生成响应：模型将函数的执行结果纳入生成的文本中，最终返回给用户。
+
+这种架构既保障了模型的功能扩展性和安全性，又使得它可以与现实世界的数据和服务相结合，提供更加全面和有用的功能。
 
 
-大模型的应用领域：能替代人，而且出错概率比人小的场景。
+
+### <b class="danger">大模型的应用领域：能替代人，而且出错概率比人小的场景。</b> 
 
 
 
 
 
 ## 4.RAG 检索增强生成 Retrieval Augumented Generation
+
+#### <b class="danger">待解决问题</b> 
+1. python代码实现，按一定粒度，部分重叠式的切割文本，使上下文更完整
+2. python代码实现的rrf融合排序算法
+```python
+import json
+
+def rrf(ranks, k=1):
+    ret = {}
+    # 遍历每次的排序结果
+    for rank in ranks:
+        # 遍历排序中每个元素
+        for id, val in rank.items():
+            if id not in ret:
+                ret[id] = {"score": 0, "text": val["text"]}
+            # 计算 RRF 得分
+            ret[id]["score"] += 1.0/(k+val["rank"])
+    # 按 RRF 得分排序，并返回
+    return dict(sorted(ret.items(), key=lambda item: item[1]["score"], reverse=True))
+    
+
+# 融合两次检索的排序结果
+reranked = rrf([keyword_search_results, vector_search_results])
+
+print(json.dumps(reranked, indent=4, ensure_ascii=False))
+```
+3. 盘古、混元、文心、通义（基座，基础模型）
+基础模型+行业数据+训练+微调=行业垂直模型（付费）
+通过行业垂直模型+RAG 来实现场景落地
+
+
+### 模型的硬件需求
+模型大小6-8B足矣支撑企业特定业务场景的AI应用（智能客服，助手）。70B以上大小的模型适用通用领域应用。
 
 #### LLM的局限性
 1. LLM的知识不是实时的
@@ -378,78 +435,47 @@ $\text{效率提升幅度} = \frac{\text{需求的理解准确度} · \text{代�
 3. 找到之后将其对应的片段原文+提问原文拼接成prompt发送给LLM，让LLM生成答案。
 </b>
 
-##### 1.1 文档的加载与切分
-    这段代码定义了一个名为 extract_text_from_pdf 的函数，用于从 PDF 文件中提取文本，并根据指定条件（如页码和最小行长度）对提取出的文字进行处理。以下是代码的详细解释：
 
-    函数接受三个参数：
+#### 二、基于OpenAI在assistants API中集成的RAG能力，可以作为参考
+ 1. 面向检索的用户query的改写，将用户的query进行改写，保留核心主干问题，避免过于简单或复杂影响效果
+ 2. 复杂的query拆解成多个，并行执行query检索
+ 3. 使用关键字检索和向量检索相结合，混合检索
+ 4. 检索后排序
+ 5. 配置参考
+    - chunk size大小: 800 tokens 文档片段大小
+    - chunk overlap大小： 400 tokens 文档之间重叠区域大小
+    - embedding mode：text-embedding-3-large at 256 dimensisions 使用large embedding模型，向量纬度256
+    - maximum number of chunks added to context: 20  即每次最多返回20个chunk做后排序
+    - **用好向量数据库的meta data元数据**，可对检索内容基于key,value信息做过滤
 
-    filename: PDF 文件的路径。
-    page_numbers: 需要提取文本的页码列表，默认为 None，表示提取所有页。
-    min_line_length: 行的最小长度，默认为 1。
-    定义了一些变量用于存储结果：
 
-    paragraphs: 存储最终整理后的段落列表。
-    buffer: 临时存储当前行及其前一行的组合文本。
-    full_text: 存储整篇文档的文本。
-    使用 enumerate(extract_pages(filename)) 遍历 PDF 的每一页。这里假设 extract_pages 是一个已定义好的函数或方法，它返回 PDF 中每一页的布局对象。
 
-    对于每一页，如果指定了 page_numbers 并且当前页码不在其中，则跳过该页。
 
-    遍历每一页中的元素，如果元素是 LTTextContainer 类型（假设这是 PyPDF2 或类似库中的一个类，用于表示文本容器），则将其文本添加到 full_text 中。
 
-    将 full_text 按行分割，并遍历每一行文本：
 
-    如果行的长度大于等于 min_line_length，则将其与前一行合并（如果前一行以连字符结尾则去除连字符），并存入 buffer。
-    如果行为空（长度小于 min_line_length），且 buffer 不为空，则将 buffer 中的内容添加到 paragraphs 列表中，并清空 buffer。
-    最后检查 buffer 是否还有剩余内容，如果有，则将其添加到 paragraphs 中。
 
-    函数返回 paragraphs 列表。
 
 ### 过召回重排序 sentence-transformers
-`from sentence_transformers import CrossEncoder`   
-这段代码的作用是什么?
-这段代码用于从 `sentence_transformers` 库中导入 `CrossEncoder` 类。`CrossEncoder` 是一个基于 transformer 的模型，通常用于比较两个输入文本的相似性或相关性，这类模型在一些 NLP 任务中非常有用。
-
-##### 具体作用
-
-`CrossEncoder` 被设计用于直接在两个句子/文本对上进行评分。与传统的双塔模型（Bi-Encoder）不同，`CrossEncoder` 将两个输入文本一起输入到同一个 transformer 模型中处理。这意味着模型在同一时间使用整个句子对的信息来进行推理，这通常能够捕获两者之间更细粒度的交互信息，因此更适用于需要精确评分的任务。
-
-##### 典型应用场景
-
-1. **文本分类**：可以对文本对进行分类，例如判断两个句子是否具有相同意图。
-   
-2. **问答匹配**：在问答系统中用来判断问题和答案的匹配度或相关性。
-
-3. **信息检索重排序阶段**：用来对基于初步检索后的候选结果进行更精细的排序，根据文本对间更高阶的语义联系给出更准确的相关性评分。
-
-##### 使用示例
-
-假设在一个对自然语言处理（NLP）任务中，你需要给句子对打分，那么可以使用 CrossEncoder 进行简单的实现：
-
+rerank是，将多个由向量索引检索到的原文结果和问题原文进行相关性排序，找出关联性最大的一项。
+检索结果重排序：通过排序模型对query和document重新打分排序，解决多个满足query的答案没有被排在最前面。
 ```python
 from sentence_transformers import CrossEncoder
 
-# 初始化 CrossEncoder，选择需要用的预训练模型
-cross_encoder = CrossEncoder('model_name')
+# model = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2', max_length=512) # 英文，模型较小
+model = CrossEncoder('BAAI/bge-reranker-large', max_length=512) # 多语言，国产，模型较大
 
-# 句子对列表，用于比较的两个句子的相似性
-sentence_pairs = [('Sentence 1A', 'Sentence 1B'), ('Sentence 2A', 'Sentence 2B')]
-
-# 使用模型获取句子对的评分
-scores = cross_encoder.predict(sentence_pairs)
-
-print(scores)  # 打印各对句子的相关性分数
+user_query = "how safe is llama 2"
+# user_query = "llama 2安全性如何"
+scores = model.predict([(user_query, doc)
+                       for doc in search_results['documents'][0]])
+# 按得分排序
+sorted_list = sorted(
+    zip(scores, search_results['documents'][0]), key=lambda x: x[0], reverse=True)
+for score, doc in sorted_list:
+    print(f"{score}\t{doc}\n")
 ```
+model.predict() 方法用于预测给定输入与文档的相关性得分。具体来说，它接受一个列表，其中每个元素是一个元组，包含用户查询和一个文档。模型会根据这些输入计算出每个文档与用户查询的相关性得分。scores 列表中的每个元素对应一个文档的相关性得分。
 
-##### 注意事项
-
-- 使用 CrossEncoder 会比 Bi-Encoders 更为计算密集，尤其是当处理大规模数据时。因为 CrossEncoder 的整个句子对必须输入到同一个模型中，所以计算成本和时间可能较大。
-- 选择预训练模型时，应根据具体任务需要选择适合的模型（可以在 Transformers 的模型集市上找到很多预训练的模型可供选择）。
-
-虽然 CrossEncoder 提供了更多细粒度的比较与分类能力，往往在相关度准确性上有更好的表现，但需要在使用时注意合适的场景和计算资源的消耗。
-
-
-### 过召回重排序 sentence-transformers
 这段代码的作用是从 sentence-transformers 库中导入 CrossEncoder 类。sentence-transformers 是一个用于自然语言处理（NLP）任务的库，特别是用于句子嵌入和语义相似度计算。CrossEncoder 是该库中的一个类，用于实现交叉编码器（Cross-Encoder）模型。
 ##### 什么是交叉编码器（Cross-Encoder）？
 交叉编码器是一种深度学习模型，通常用于解决涉及两个文本序列的任务，如语义相似度计算、文本匹配等。它的工作原理如下：
@@ -489,11 +515,7 @@ for score in scores:
 •灵活性：可以用于多种文本匹配和相似度计算任务。
 ##### 缺点
 •计算成本：相对于简单的向量检索方法（如余弦距离），交叉编码器的计算成本较高，特别是在处理大规模数据时。
-希望这些信息对你有帮助！如果你有更多问题或需要进一步的示例，请告诉我。内容由AI生成
-已记录
-记录代码和模型的使用方法
-制作演示文稿介绍模型
-如何优化CrossEncoder的性能？
+
 
 
 ### embedding模型如何选择
@@ -505,19 +527,66 @@ huggingface的模型库：https://huggingface.co/spaces/mteb/leaderboard
 3.model size 指标，取决个人设备的显存存储情况。
 4.用具体的简单的demo测试不同的模型，基于问题抽取10个或5个文本块，进行可视化后判断。
 
-
-## 文档中的表格处理
-1.将每页PDF转成图片
-2.在图片中采用OCR识别表格
-3.将表格内容向量化
-
-
 <b class="alert info">
 业界常用的做法：向量数据库和传统关系型数据库同时使用，比如简历信息中姓名，年龄，性别这些适用结构化检索的数据用关系型数据库存储，工作经历等描述型文本（不适合SQL查询检索的非结构化数据）使用向量数据库。当需要根据工作经历筛选最符合岗位的人员时查向量数据库，当需要具体年龄的人员时查结构化数据库。推荐适用milvus、weaviate向量数据库</b>
 
 
 embedding模型的选择：https://www.bilibili.com/video/BV1GPS4YfEtu/?spm_id_from=333.999.0.0
 
+
+### 混合检索
+在实际生产中，传统的关键字检索（稀疏表示）与向量检索（稠密表示）各有优劣。RAG实践中，文档切分后做两套策略，关键字检索、向量化检索结合实现混合检索。
+
+
+### <b class="danger">使用BERT模型NSP来进行训练微调</b>
+#### 如何分割文档保证内容语义完整性？
+1. 利用自然语言特征
+按段落分割：文本通常按段落分割，每个段落围绕一个中心思想，这通常能保持语义的完整性。如果文本格式整齐（如 PDF 或 HTML），段落分割是一个很好的起点。
+使用句子边界检测：应用自然语言处理工具来检测句子边界，保证每个片段至少包含若干完整的句子。
+2. 智能分割算法
+文本建模：使用主题建模或语义分析工具，通过提取文本的主题结构来指导分割。这可以帮助识别出语义上相近的文本块，避免不相关的混杂。
+重叠窗口技术：为保证上下文的连续性，可以使用重叠窗口进行切片。即在每个片段的开头或结尾重复一些内容，使片段之间内容稍有重叠以保证信息的连续性。
+3. 基于语义的分割
+聚类分析：通过词嵌入和聚类算法，可以将相似句子或段落聚集到一起。这允许分割基于语义特性而非仅仅形式特征，适用于更复杂和主题分明的文档。
+关键点检测：使用深度学习模型（如 BERT）来了解句子间的关系和重要性，自动检测主题转折点，决定分割边界。
+4. 基于结构化信息
+利用文档结构：如果文档是结构化的（如 JSON、XML 等），那么可以利用结构层级（如章节、条目）来引导分割。
+基于标记：许多文档格式包含标记语言（如 Markdown 中的头标签），这可以作为自然的分割点使用。
+5. 经验法则和人工干预
+专家知识：对领域中特殊格式的采用人工标注或领域专家提供自动分割指导。
+迭代和反馈：尝试使用一些智能方法进行初步分割，然后通过用户反馈来不断优化分割策略。
+6. 工具和库
+NLTK 和 SpaCy：这些库提供了大量自然语言处理的工具包，可以帮助进行句子分割和词法分析。
+Transformers 模型：如 BERT，可用于生成句子或文档嵌入，帮助识别语境和语义信息。
+通过结合使用这些方法和技巧，您可以在 RAG 应用中更好地保障文档内容的语义完整性和连贯性，从而提高系统的精确性和可靠性。确保语义上整合良好的文档切片有利于在实际应用中提供更精细和有价值的信息检索结果。
+
+#### 使用BERT模型NSP来进行训练，如何提高RAG分割文档的准确性和完整性。
+在 RAG 系统中，使用 BERT 模型的 Next Sentence Prediction（NSP）任务可以帮助提高文档分割的准确性和语义完整性。NSP 任务训练一个模型来判断两个句子是否应该在一起出现，即它们是否在原文本中连续。这种能力可以被用来识别文档的自然分割点，确保切分后保留语义的连贯性。以下是一些具体方法：
+1. 微调 BERT NSP 模型
+数据准备：
+从目标语料中获取真实文档，并制作正样本（紧邻句子对）和负样本（随机句子对），用于微调 BERT 的 NSP 部分。
+可以增加一些跨段落但连续的句子对，帮助模型学会识别自然段落。
+训练策略：
+在您的领域数据上重新微调 BERT 的 NSP 部分，数据中的句子对结构越接近目标应用，效果越好。
+使用大量领域样本，保证模型能够学到不同语境中自然句子连续性的特征。
+2. 利用 NSP 预测分割点
+预测应用：
+将文档内容分段后，对每个相邻句子对应用 NSP 模型，通过高可信度的连续标签判断适合分割的点。
+将分割可能性转化为阈值，确保每个片段在预测的基础上保持语义一致。
+动态窗口法：
+在较长文本切割成均匀段落，并对这些切片进行 NSP 分类，通过逐步调整扇区大小，预测合成自然段。
+3. 基于 NSP 的语义完整性提升
+结合其他语义工具：
+可以结合上下文语义分析工具，从词汇和主题层面再验证 NSP 初始分割的准确性。
+使用聚类或主题检测确认模型分割后的片段是否具有实际语义意义。
+评价与选优：
+设计多种分割策略，通过模型评估确定 NSP 为基础模型策略的合适性，持续引入新数据和反馈优化切分。
+4. 工具和技术结合
+集成 BERT 与 Info Extraction：
+要注意 BERT 的能力在于识别上下文关联。你可以在分割后的每个段落进行信息提取来再次验证分割的合理性。
+增量模型微调：
+通过将新的数据输入到训练和调整的过程中，逐步增强模型的领域识别能力。
+通过利用 BERT 的 NSP 能力，在 RAG 系统中对文档分割进行优化，你可以更好地保持文本切分后的语义完整性，降低文档内容丢失或语义断裂的风险。这将有助于新生成内容的质量和精准度，让信息检索和生成任务能更好地贴合用户需求。
 
 
 ### 通过bert模型微调，实现识别段落之间的关联性，提高RAG场景下切分文档的准确性，保证语义性
@@ -776,76 +845,222 @@ trainer.train()
 如果现有的数据集无法完全满足需求，建议构建自定义数据集，以更贴近具体应用场景。同时，结合领域知识和实际需求，调整模型架构和训练策略，以提升模型在特定任务上的表现。
 
 
+## 文档中的表格处理
+1.将每页PDF转成图片
+2.在图片中采用OCR识别表格
+3.将表格内容向量化
 
 
 
 
 
 
-## 其他内容
-盘古、混元、文心、通义（基座，基础模型）
-基础模型+行业数据+训练+微调=行业垂直模型（付费）
-通过行业垂直模型+RAG 来实现场景落地
 
-### 如何分割文档保证内容语义完整性？<b class="danger">使用BERT模型NSP来进行训练微调</b>
-1. 利用自然语言特征
-按段落分割：文本通常按段落分割，每个段落围绕一个中心思想，这通常能保持语义的完整性。如果文本格式整齐（如 PDF 或 HTML），段落分割是一个很好的起点。
-使用句子边界检测：应用自然语言处理工具来检测句子边界，保证每个片段至少包含若干完整的句子。
-2. 智能分割算法
-文本建模：使用主题建模或语义分析工具，通过提取文本的主题结构来指导分割。这可以帮助识别出语义上相近的文本块，避免不相关的混杂。
-重叠窗口技术：为保证上下文的连续性，可以使用重叠窗口进行切片。即在每个片段的开头或结尾重复一些内容，使片段之间内容稍有重叠以保证信息的连续性。
-3. 基于语义的分割
-聚类分析：通过词嵌入和聚类算法，可以将相似句子或段落聚集到一起。这允许分割基于语义特性而非仅仅形式特征，适用于更复杂和主题分明的文档。
-关键点检测：使用深度学习模型（如 BERT）来了解句子间的关系和重要性，自动检测主题转折点，决定分割边界。
-4. 基于结构化信息
-利用文档结构：如果文档是结构化的（如 JSON、XML 等），那么可以利用结构层级（如章节、条目）来引导分割。
-基于标记：许多文档格式包含标记语言（如 Markdown 中的头标签），这可以作为自然的分割点使用。
-5. 经验法则和人工干预
-专家知识：对领域中特殊格式的采用人工标注或领域专家提供自动分割指导。
-迭代和反馈：尝试使用一些智能方法进行初步分割，然后通过用户反馈来不断优化分割策略。
-6. 工具和库
-NLTK 和 SpaCy：这些库提供了大量自然语言处理的工具包，可以帮助进行句子分割和词法分析。
-Transformers 模型：如 BERT，可用于生成句子或文档嵌入，帮助识别语境和语义信息。
-通过结合使用这些方法和技巧，您可以在 RAG 应用中更好地保障文档内容的语义完整性和连贯性，从而提高系统的精确性和可靠性。确保语义上整合良好的文档切片有利于在实际应用中提供更精细和有价值的信息检索结果。
+## 5.Assitants API
 
-### 使用BERT模型NSP来进行训练，如何提高RAG分割文档的准确性和完整性。
-在 RAG 系统中，使用 BERT 模型的 Next Sentence Prediction（NSP）任务可以帮助提高文档分割的准确性和语义完整性。NSP 任务训练一个模型来判断两个句子是否应该在一起出现，即它们是否在原文本中连续。这种能力可以被用来识别文档的自然分割点，确保切分后保留语义的连贯性。以下是一些具体方法：
-1. 微调 BERT NSP 模型
-数据准备：
-从目标语料中获取真实文档，并制作正样本（紧邻句子对）和负样本（随机句子对），用于微调 BERT 的 NSP 部分。
-可以增加一些跨段落但连续的句子对，帮助模型学会识别自然段落。
-训练策略：
-在您的领域数据上重新微调 BERT 的 NSP 部分，数据中的句子对结构越接近目标应用，效果越好。
-使用大量领域样本，保证模型能够学到不同语境中自然句子连续性的特征。
-2. 利用 NSP 预测分割点
-预测应用：
-将文档内容分段后，对每个相邻句子对应用 NSP 模型，通过高可信度的连续标签判断适合分割的点。
-将分割可能性转化为阈值，确保每个片段在预测的基础上保持语义一致。
-动态窗口法：
-在较长文本切割成均匀段落，并对这些切片进行 NSP 分类，通过逐步调整扇区大小，预测合成自然段。
-3. 基于 NSP 的语义完整性提升
-结合其他语义工具：
-可以结合上下文语义分析工具，从词汇和主题层面再验证 NSP 初始分割的准确性。
-使用聚类或主题检测确认模型分割后的片段是否具有实际语义意义。
-评价与选优：
-设计多种分割策略，通过模型评估确定 NSP 为基础模型策略的合适性，持续引入新数据和反馈优化切分。
-4. 工具和技术结合
-集成 BERT 与 Info Extraction：
-要注意 BERT 的能力在于识别上下文关联。你可以在分割后的每个段落进行信息提取来再次验证分割的合理性。
-增量模型微调：
-通过将新的数据输入到训练和调整的过程中，逐步增强模型的领域识别能力。
-通过利用 BERT 的 NSP 能力，在 RAG 系统中对文档分割进行优化，你可以更好地保持文本切分后的语义完整性，降低文档内容丢失或语义断裂的风险。这将有助于新生成内容的质量和精准度，让信息检索和生成任务能更好地贴合用户需求。
+Assistants API具备的能力：
+- 创建和管理Assistants 每个Assistants都有独立的配置
+- 支持代码沙箱，可向code interpreter 发送文件
+- 支持function calling 
+- 通过集成自有的向量数据库支持RAG
+- 支持无限多轮对话，保存在openai服务器上
 
 
-## 硬件需求
-1、模型大小6-8B足矣支撑企业特定业务场景的AI应用（智能客服，助手）。70B以上大小的模型适用通用领域应用。
-2、
 
-rerank是，将多个由向量索引检索到的原文结果和问题原文进行相关性排序，找出关联性最大的一项。
+OpenAI 为了降低开发门槛所提供的一套开发工具。类似字节跳动的coze开发工具，适合快速搭建一个基于语言模型的原型demo，验证功能、汇报，如果要做生产级的应用此类开发工具还是有所欠缺，无法精细化操控。想要极致调优，还得原生API+RAG
+创建步骤：
+ 1. 在playground中创建。 配置function call, code interpreter, file search等
+ 2. 在playground中调试测试效果。
+ 3. 发布之后，得到一个assistant id号
+ 4. 将调试后的代码集成到其他web，app应用中，通过代码访问和调用。
 
-检索结果重排序：通过排序模型对query和document重新打分排序，解决多个满足query的答案没有被排在最前面。
+### assitant
+创建assistant `assistant = client.beta.assistants.creat()`
+```python
+assistant = client.beta.assistants.creat(
+    name="AGIClass Demo TempLive",
+    instructions="你叫瓜瓜，你是AGI课堂的智能助理。你负责回答与AGI课堂有关的问题。",
+    model="gpt-4o"
+)
+```
 
-问答对类型的文档，可以将问题向量化来兜住用户的提问，也可以将问题和答案一起向量化。
+获取所有assistant 列表 `assistants = client.beta.assistants.list()`
+删除指定id的assistant `client.beta.assistants.delete(id)`
+
+### thread
+**thread中保存的是对话历史，即message**
+管理和保存每个assitant和用户的对话历史。
+每个通过assitants api搭建的assitant发布后都会与很多用户交互，每个用户交互的对话历史都存在thread中即messages
+一个assistant可以有多个thread
+一个thread可以有无限条message
+一个用户与assistant的多轮对话可以维护在一个thread中
+
+
+
+创建thread `thread = client.beta.threads.create`
+```python
+thread = client.beta.threads.create(
+    metadata={"fullname": "王卓然", "username": "wzr"}
+)
+```
+
+获取 thread`threads.retrieve()`
+获取thread `thread = client.beta.threads.retrieve(thread.id)`
+
+修改 thread `threads.modify()`
+删除 thread`threads.delete()`
+
+
+### message
+在thread中创建消息 `message=client.beta.threads.messages.create()`
+
+```python
+message = client.beta.threads.messages.create(
+    thread_id=thread.id, #message必须归属一个thread_id,
+    role="user",
+    content="你能做什么"
+)
+```
+获取消息`threads.message.retrieve()`
+列出给定thread下的所有消息`threads.message.list()`
+**更新**message中的 **metadata** `threads.message.update()`
+
+
+### run方法
+run方法是把assistant 和 threads 关联起来，进行对话
+**一个prompt 就是一次run，通过不同的run_id来维护**
+
+
+##### 将存在的thread_id对应thread和指定assistant_id的assistant绑定，根据thread中已有的信息，机器人就可以开始产生回复了。
+```python
+assistant_id='xxxxx'
+
+
+run= client.beta.threads.runs.create_and_poll(
+    thread_id=thread.id,
+    assistant_id=assistant_id
+)
+
+if run.status == 'completed':
+    message = client.beta.threads.messages,list(
+        thead_id=thread.id
+    )
+    show_json(message)
+else:
+    print(run.status)
+
+# 示例2
+# 创建 thread
+thread = client.beta.threads.create()
+
+# 创建thread之后，向thread中添加新一轮的 user message
+message = client.beta.threads.messages.create(
+    thread_id=thread.id,
+    role="user",
+    content="用代码计算 1234567 的平方根",
+)
+
+```
+
+##### 使用 stream 接口并传入 EventHandler()
+
+```python
+from typing_extensions import override
+from openai import AssistantEventHandler
+
+class EventHandler(AssistantEventHandler):
+    # override 装饰器，用来标记和声明覆写父类的on_text_created方法，便于静态类型检查时提前发现覆写因为拼写或逻辑的错误
+    @override
+    def on_text_created(self, text) -> None:
+        """响应输出创建事件"""
+        print(f"\nassistant > ", end="", flush=True)
+
+    @override
+    def on_text_delta(self, delta, snapshot):
+        """响应输出生成的流片段"""
+        print(delta.value, end="", flush=True)
+
+with client.beta.threads.runs.stream(
+    thread_id=thread.id,
+    assistant_id=assistant_id,
+    event_handler=EventHandler(),
+) as stream:
+    stream.until_done()
+```
+
+
+列出thread 下所有的run `threads.runs.list()`
+获取run `threads.runs.retrieve()`
+**修改run 的metadata** `threads.runs.update()`
+取消in_progress状态的run `threads.runs.cancel()`
+流式对话`threads.runs.stream()`
+
+
+### 创建Assistant 时声明function
+```python
+assistant = client.beta.assistants.create(
+  instructions="你叫瓜瓜。你是AGI课堂的助手。你只回答跟AI大模型有关的问题。不要跟学生闲聊。每次回答问题前，你要拆解问题并输出一步一步的思考过程。",
+  model="gpt-4o",
+  tools=[{
+    "type": "function",
+    "function": {
+      "name": "course_info",
+      "description": "用于查看具体课程信息，包括时间表，题目，讲师，等等。Function输入必须是一个合法的SQL表达式。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "SQL query extracting info to answer the user's question.\nSQL should be written using this database schema:\n\nCREATE TABLE Courses (\n\tid INT AUTO_INCREMENT PRIMARY KEY,\n\tcourse_date DATE NOT NULL,\n\tstart_time TIME NOT NULL,\n\tend_time TIME NOT NULL,\n\tcourse_name VARCHAR(255) NOT NULL,\n\tinstructor VARCHAR(255) NOT NULL\n);\n\nThe query should be returned in plain text, not in JSON.\nThe query should only contain grammars supported by SQLite."
+          }
+        },
+        "required": [
+          "query"
+        ]
+      }
+    }
+  }]
+)
+```
+
+### Assistant 内置RAG
+```python
+# 创建vector_store
+vector_store = client.beta.vector_stores.create(
+  name="MyVectorStore")
+
+# 上传文件
+file = client.files.create(
+  file=open("agiclass_intro.pdf", "rb"),
+  purpose="assistants"
+)
+
+# 将文件添加到vector_store
+vector_store_file = client.beta.vector_stores.files.create(
+  vector_store_id=vector_store.id,
+  file_id=file.id
+)
+```
+列出所有文件 `client.files.list()` 
+获取文件对象 `client.files.retrieve()` 
+删除文件 `client.files.delete()` 
+读取文件内容 `client.files.content()` 
+
+### 创建assistant时 声明RAG能力
+```python
+assistant = client.beta.assistants.create(
+  instructions="你是个问答机器人，你根据给定的知识回答用户问题。",
+  model="gpt-4o",
+  tools=[{"type": "file_search"}],
+)
+
+# 指定assistant的检索源
+assistant = client.beta.assistants.update(
+  assistant_id=assistant.id,
+  tool_resources={"file_search": {"vector_store_ids": [vector_store.id]}},
+)
+```
+
 
 
 
