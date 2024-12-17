@@ -59,6 +59,51 @@
 <b class="info">学习路线</b>[聚客AI学习路线](./01/AI大模型学习路线.pdf)
 
 
+
+<b class="info">
+对function calling的建议，大模型自主决定什么时候calling function不太靠谱，如果是线上正式的且对稳定性要求较高的服务，建议自己用prompt解析需求，手工调function更靠谱。即根据解析的结果，意图判断的结果手工调function，不要完全依赖大模型调用function calling的机制
+</b>
+
+
+
+#### <b class="danger">待解决问题</b> 
+1. python代码实现，按一定粒度，部分重叠式的切割文本，使上下文更完整
+2. python代码实现的rrf融合排序算法
+```python
+import json
+
+def rrf(ranks, k=1):
+    ret = {}
+    # 遍历每次的排序结果
+    for rank in ranks:
+        # 遍历排序中每个元素
+        for id, val in rank.items():
+            if id not in ret:
+                ret[id] = {"score": 0, "text": val["text"]}
+            # 计算 RRF 得分
+            ret[id]["score"] += 1.0/(k+val["rank"])
+    # 按 RRF 得分排序，并返回
+    return dict(sorted(ret.items(), key=lambda item: item[1]["score"], reverse=True))
+    
+
+# 融合两次检索的排序结果
+reranked = rrf([keyword_search_results, vector_search_results])
+
+print(json.dumps(reranked, indent=4, ensure_ascii=False))
+```
+3. 盘古、混元、文心、通义（基座，基础模型）
+基础模型+行业数据+训练+微调=行业垂直模型（付费）
+通过行业垂直模型+RAG 来实现场景落地
+
+4. docker的使用，部署elasticsearch,部署向量数据库提供client-server服务
+5. 中文pdf的切分，如何将上下文语义相关的段落合并成一个段落
+6. 如何部署模型，实现对外提供并发调用
+7. 将对话逻辑封装在fastapi中
+
+
+
+
+
 ## 1. prompt-engineering
 <b class="success">把AI当人看</b>
 <b class="success">把AI当人看</b>
@@ -375,35 +420,6 @@ $\text{效率提升幅度} = \frac{\text{需求的理解准确度} · \text{代�
 
 ## 4.RAG 检索增强生成 Retrieval Augumented Generation
 
-#### <b class="danger">待解决问题</b> 
-1. python代码实现，按一定粒度，部分重叠式的切割文本，使上下文更完整
-2. python代码实现的rrf融合排序算法
-```python
-import json
-
-def rrf(ranks, k=1):
-    ret = {}
-    # 遍历每次的排序结果
-    for rank in ranks:
-        # 遍历排序中每个元素
-        for id, val in rank.items():
-            if id not in ret:
-                ret[id] = {"score": 0, "text": val["text"]}
-            # 计算 RRF 得分
-            ret[id]["score"] += 1.0/(k+val["rank"])
-    # 按 RRF 得分排序，并返回
-    return dict(sorted(ret.items(), key=lambda item: item[1]["score"], reverse=True))
-    
-
-# 融合两次检索的排序结果
-reranked = rrf([keyword_search_results, vector_search_results])
-
-print(json.dumps(reranked, indent=4, ensure_ascii=False))
-```
-3. 盘古、混元、文心、通义（基座，基础模型）
-基础模型+行业数据+训练+微调=行业垂直模型（付费）
-通过行业垂直模型+RAG 来实现场景落地
-
 
 ### 模型的硬件需求
 模型大小6-8B足矣支撑企业特定业务场景的AI应用（智能客服，助手）。70B以上大小的模型适用通用领域应用。
@@ -449,7 +465,90 @@ print(json.dumps(reranked, indent=4, ensure_ascii=False))
     - **用好向量数据库的meta data元数据**，可对检索内容基于key,value信息做过滤
 
 
+#### 三、RAG中chunking 分块策略
+ - 固定大小分块：将文本按固定大小分块，简单高效，但会破坏原文档的语义性
+ - 递归分块：使用递归方式按标点符号分块（**逗号，句号，换行**等），直到每个分块的大小都符合设置值。首先设定块的大小，整个过程先按句号分，比如定义一个块的大小为20个字符，当对文档**先用句号**切分的时候如果某个块超过20个字符，则**递归**，**进一步使用逗号分隔**，将超过的部分切到下一个块中。当切分不足20个字符时，也会将下一句的部分内容切入到片段，直到这个块**接近**20个字符。
+ - 基于文档结构的分块：基于文档的逻辑结构进行分块，比如md文档有明确的段落或小结，这种方式适用有逻辑结构的文档。
+ - 基于语义的分块：将文档依据标点符号（。？！）切分成诺干句子（句子之间有重叠。除开第一个句子和后一个句子重叠、最后一个句子和前一个句子重叠之外，中间的句子取重叠时都会覆盖前一个句子和后一个句子）。然后将相似度接近的句子合并在一起组成一个chunk.
 
+#### 如何确定文本切割策略
+**如何确定chunk_size大小。**
+- 首先要考虑**embedding model**模型的**max token**参数大小。每个chunk_size的大小不能超过embedding模型的**max token**参数大小<b class="danger">（是原始文本embedding之后的token的长度）</b>。
+- LLM model的 **max sequence length**参数，**这个参数不要根据单一的chunk_size的大小来确定。** 而应该根据**召回retrieval数量构成的总文本长度来确定**。比如召回top5数量的内容，这5个文本内容拼接起来，还要加上其他的prompt，其总长度不能超过大模型的max sequence length参数大小。
+
+**常见的文本切分策略**
+- **CharacterTextSplitter**：基于字符切分文本，通过限制字符的数量来确定chunk_size大小。适合小文本，比如markdown格式的文本。
+- **RecursiveCharacterTextSplitter**：基于**字符列表**拆分文本，**递归切割**，递归切割的阈值是chunk_size的大小，当文本长度大于chunk_size的大小时，将文本进行递归切割，直到文本长度小于等于chunk_size的大小。适合长文本，比如PDF格式的文本。
+- **Document Specific Splitter**：符合英文的语义方式，对英文文档支持好，中文较差。针对不同的文件类型使用不同的切分，比如markdown格式的文本，或者pdf格式的文本，或者html格式的文本等。
+
+- **Semantic Splitter**： 滑动窗口切分，效果最好，基于文本的语义切分，比如根据文本的句法结构进行切分，然后将相似度接近的句子合并在一起组成一个chunk。
+![alt text](./04-RAG/semantic%20text%20splitter.png)
+https://www.bilibili.com/video/BV1dr421x7Su/?spm_id_from=333.788.recommend_more_video.3&vd_source=32fa1c202efe5bb6942b35f0c043a7e9
+13分10秒
+
+https://www.bilibili.com/video/BV1meqLYxEfN/?spm_id_from=333.999.0.0&vd_source=32fa1c202efe5bb6942b35f0c043a7e9
+
+
+
+<b class="danger">待解决问题：将文档切分出来的片段，经过embedding处理后，token的长度区间分布，用plot直方图可视化展示出来。了解文档切分成诺干份后，经过embedding处理，token的长度分布区间，基于分布图来考虑是否要调整chunk_size大小</b>
+https://www.bilibili.com/video/BV1dr421x7Su/?spm_id_from=333.788.recommend_more_video.3&vd_source=32fa1c202efe5bb6942b35f0c043a7e9
+10分35秒
+
+
+
+#### 四、如何选择embedded模型
+huggingface embedded模型排名
+https://huggingface.co/spaces/mteb/leaderboard
+第一选择**bce-embedding-base_v1**，支持中英双语
+第二选择**BAAI/bge-large-zh-v1.5** 中文模型
+```python
+from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+from llama_index.core import Settings
+
+Settings.embed_model = HuggingFaceEmbedding(
+    model_name="BAAI/bge-large-zh-v1.5"
+)
+```
+
+第三选择**m3e-base**模型，中文模型
+```python
+from sentence_transformers import SentenceTransformer
+model = SentenceTransformer("moka-ai/m3e-base")
+embeddings = model.encode(sentences)
+```
+
+
+
+
+### embedding模型如何选择
+选择embedding模型时的四个参考要点
+参考huggingface的模型库，选择适合自己的模型。
+huggingface的模型库：https://huggingface.co/spaces/mteb/leaderboard
+基于以下四点选择
+1.Sequence length 参数，根据文档分块后的chunk size的大小来确定。长度指标，比如chunksize分完后，chunk的标准答案已经很长了，比如超过了512了，那选择模型的时候要选择一个Sequence length 长度指标能处理这种长文本的模型。这取决于对应answer的长度
+2.embedding dimensions 参数，根据文本词汇的语义复杂程度来确定。嵌入维度指标，比如512，768，1024等。并不是越大越好，取决于业务场景中语义是否丰富，如果文本词汇的语义非常丰富保罗万象该指标越大越好，如果业务场景的语义比较精比较专业，比如针对专精业务领域的词汇、句子、文本，选择指标小的更好。
+3.model size 指标，取决个人设备的显存存储情况。
+4.用具体的简单的demo测试不同的模型，将query的embedding和文本的embedding进行可视化展示，识别模型效果。
+
+<b class="alert info">
+业界常用的做法：向量数据库和传统关系型数据库同时使用，比如简历信息中姓名，年龄，性别这些适用结构化检索的数据用关系型数据库存储，工作经历等描述型文本（不适合SQL查询检索的非结构化数据）使用向量数据库。当需要根据工作经历筛选最符合岗位的人员时查向量数据库，当需要具体年龄的人员时查结构化数据库。推荐适用milvus、weaviate向量数据库</b>
+
+embedding模型的选择：https://www.bilibili.com/video/BV1GPS4YfEtu/?spm_id_from=333.999.0.0
+
+
+
+##### 句子sentence 的embedded 如何处理
+1. 首先分词处理，将句子切分成词汇，然后将每个词对应一个word embedding
+2. 池化pooling，可使用均值pooling_mode_mean_tokens，pooling_mode_max_tokens，bert的pooling_mode_cls_token，pooling_mode_mean_sqrt_len_tokens
+
+<b class="info">embedded模型一般是基于Sentence 使用BERT模型NSP来进行训练。
+</b>
+
+
+#### 五、如何选择PDF文档解析器
+RAG的数据取决于两方面，一是数据的来源，二是对数据的解析。
+- marker pdf转换器MARKER，转成markdown格式。或者选择docling
+- llamaParse 基于AI能力的解析工具
 
 
 
@@ -518,20 +617,7 @@ for score in scores:
 
 
 
-### embedding模型如何选择
-参考huggingface的模型库，选择适合自己的模型。
-huggingface的模型库：https://huggingface.co/spaces/mteb/leaderboard
-基于以下四点选择
-1.Sequence length 长度指标，比如chunksize分完后，chunk的标准答案已经很长了，比如超过了512了，那选择模型的时候要选择一个Sequence length 长度指标能处理这种长文本的模型。这取决于对应answer的长度
-2.embedding dimensions 嵌入维度指标，比如512，768，1024等。并不是越大越好，取决于业务场景中语义是否丰富，如果语义特别丰富保罗万象该指标越大越好，如果业务场景的语义比较精比较专业，选择指标小的更好。
-3.model size 指标，取决个人设备的显存存储情况。
-4.用具体的简单的demo测试不同的模型，基于问题抽取10个或5个文本块，进行可视化后判断。
 
-<b class="alert info">
-业界常用的做法：向量数据库和传统关系型数据库同时使用，比如简历信息中姓名，年龄，性别这些适用结构化检索的数据用关系型数据库存储，工作经历等描述型文本（不适合SQL查询检索的非结构化数据）使用向量数据库。当需要根据工作经历筛选最符合岗位的人员时查向量数据库，当需要具体年龄的人员时查结构化数据库。推荐适用milvus、weaviate向量数据库</b>
-
-
-embedding模型的选择：https://www.bilibili.com/video/BV1GPS4YfEtu/?spm_id_from=333.999.0.0
 
 
 ### 混合检索
@@ -1060,6 +1146,964 @@ assistant = client.beta.assistants.update(
   tool_resources={"file_search": {"vector_store_ids": [vector_store.id]}},
 )
 ```
+
+
+
+
+## 6.LlamaIndex
+
+LlamaIndex是大语言模型的开发框架SDK，它提供了各种工具，让开发者可以更方便地开发基于大语言模型的应用。
+  - 第三方能力抽象。比如 LLM、向量数据库、搜索接口等
+  - 常用工具、方案封装
+  - 底层实现封装。比如流式接口、超时重连、异步与并行等
+
+使用LlamaIndex开发框架的优势：比如可以随意更换 LLM 而不用大量重构代码，将经常变的prompt部分放在外部维护而不是放在代码里，方便调试和测试。
+
+##### LlamaIndex 是一个为开发 **「上下文增强」** 的大语言模型应用的框架（也就是 SDK）
+![LlamaIndex功能示意图](./06-LlamaIndex/basic_rag.png)
+
+
+
+### RAG pipeline 的5个阶段
+1. Loading
+加载：这指的是从数据所在的位置获取数据，无论是文本文件、PDF、另一个网站、数据库还是 API，将其加载到到流程中。LlamaHub 提供了数百个连接器供选择。
+2. Indexing
+索引：创建一种数据结构，以便查询数据。对于LLMs，基本都使用 vector embeddings策略来建立向量索引，以便轻松准确地找到上下文相关的数据。
+3. Storing
+存储：数据被索引后，通过向量数据库来存储索引，以及其他元数据（元数据可避免需要重新索引）。
+4. Querying
+查询：对于任何给定的索引策略，有多种方式可以利用 LLMs 和 LlamaIndex 数据结构进行查询，包括子查询、多步查询和混合策略。
+5. Evaluation
+评估：在任何流程中都是一个关键步骤，即检查其相对于其他策略的有效性，或者当进行业务更改时。评估提供了关于查询响应的准确性、一致性和速度的客观指标。
+
+### RAG的核心概念
+1. **Document** 是围绕任何数据源的容器 - 例如，PDF、API 输出或从数据库中检索数据。 
+2. **Node** 是 LlamaIndex 中数据的原子单元，代表源 Document 的“块”。nodes节点具有与它们所在的文档documents和其他节点相关的元数据。
+3. **Connectors** 数据连接器（通常称为 Reader ）从不同的数据源和数据格式中摄取数据到 Documents 和 Nodes 。
+4. **Indexes** LlamaIndex 将数据索引到易于检索的结构中。通常涉及生成 vector embeddings ，这些数据存储在向量数据库中。
+5. **Embeddings** 嵌入：由LLMs生成 embeddings 的数据的数值表示。在进行相关性过滤时，LlamaIndex 会将查询转换为嵌入，在向量数据库中找到与query的查询embeddings数值相似的数据。
+6. **Retrievers** 检索器：检索器定义了在给定查询时如何从索引结果中准确高效地检索出相关的上下文。
+7. **Routers** 路由器：路由器决定使用哪个检索器从知识库中检索相关上下文。RouterRetriever 类负责选择一个或多个候选检索器来执行查询。它们使用选择器根据每个候选检索器的元数据和查询来选择最佳选项。
+8. **Node Postprocessors** 节点后处理器，接收一组检索到的节点，并对其应用转换、过滤或重新排序逻辑。
+9. **Response Synthesizers** 响应合成器通过使用用户查询和一组检索到的文本片段，从LLM生成响应。
+
+### Document 和 Node的关系
+**Document:** 文档是围绕任何数据源的通用容器 - 例如，PDF、API 输出或从数据库检索的数据。可以手动创建document，也可以通过数据加载器从各种数据源中摄取数据。
+
+**Node:** 节点代表源文档的“块”，无论是文本块、图像还是其他。类似于文档，它们包含与其他节点的关系信息和元数据。可以选择直接定义节点及其所有属性。也可以选择通过**NodeParser** 类将源文档“解析”为节点。**从文档构建出的每个节点都将继承该文档的相同元数据（例如：file_name）**
+
+**文档存储着文本和一些其他属性。**
+- metadata: 元数据，例如文件名、路径、创建时间等。可以附加到文本上的注释字典
+- relationships: 包含与其他文档/节点关系的字典。
+
+```python
+# 对文档索引
+from llama_index.core import Document, VectorStoreIndex
+
+index = VectorStoreIndex.from_documents(documents)
+
+# 对节点索引
+from llama_index.core.node_parser import SentenceSplitter
+parser = SentenceSplitter()
+nodes = parser.get_nodes_from_documents(documents)
+
+index = VectorStoreIndex(nodes)
+```
+
+### metadata 元数据
+每个document文档上的 metadata 字典，可以包含额外信息以帮助提供响应并追踪查询响应的来源。这些信息可以是任何内容，例如文件名或类别。
+任何在document文档的 metadata 字典中设置的任何元信息都会显示在每个Node节点（由文档创建）的 metadata 中,使索引能够在查询和响应中利用它。
+
+<b class="danger">默认情况下，设置的任何元数据都将包含在embeddings生成中，还有LLM生成中</b>
+一个文档可能包含许多元数据键，但实际开发时可能不希望所有这些键值对元数据在LLM生成响应时对LLM可见。比如不希望LLM读取文档的 file_name属性，但在生成embedded嵌入时又需要file_name属性。
+- 自定义对LLM模型生成响应时，元数据的可见范围 
+```python
+# 排除某个元数据
+document.excluded_llm_metadata_keys = ["file_name"]
+
+# 测试LLM生成响应时，实际看到的metadata，验证上面的排除是否生效
+from llama_index.core.schema import MetadataMode
+print(document.get_content(metadata_mode=MetadataMode.LLM))
+```
+
+- 自定义对embedded模型生成嵌入时，元数据的可见范围
+```python
+document.excluded_embed_metadata_keys = ["file_name"]
+
+# 测试embedded模型，在生成嵌入时，能看看到metadata，验证上面的排除是否生效
+from llama_index.core.schema import MetadataMode
+print(document.get_content(metadata_mode=MetadataMode.EMBED))
+```
+
+- 自定义元数据的展示格式，由三个属性控制
+    - Document.metadata_seperator 设置连接所有元数据的键/值对的分割符
+    - Document.metadata_template 设置元数据的展示格式，如：`{key}: {value}`，默认为`{key}={value}`
+    - Document.text_template 设置元数据与文档/节点文本内容结合时的模板格式
+
+
+
+
+**添加元数据的几种方法**：
+- 文档构造函数中添加元数据
+```python
+document = Document(
+    text="text",
+    metadata={"filename": "<doc_file_name>", "category": "<category>"},
+)
+```
+- 文档创建后添加元数据`document.metadata={"filename": "<doc_file_name>", "category": "<category>"}`
+- 使用simpleDirectoryReader类读取文档时，通过钩子函数设置元数据
+```python
+from llama_index.core import SimpleDirectoryReader
+filename_fn = lambda filename: {"file_name": filename}
+# automatically sets the metadata of each document according to filename_fn
+documents = SimpleDirectoryReader(
+    "./data", file_metadata=filename_fn
+).load_data()
+```
+
+
+**元数据提取的几种方法**： 可以使用 Metadata Extractor 模块自动化元数据提取。元数据提取模块包括以下“特征提取器”：
+- SummaryExtractor - 自动从一组节点中提取摘要
+- QuestionsAnsweredExtractor - 提取一组节点可以回答的问题
+- TitleExtractor - 从每个节点的内容中提取标题
+- EntityExtractor - 提取每个节点内容中提到的实体（即地点、人物、事物名称）
+```python
+from llama_index.core.extractors import (
+    TitleExtractor,
+    QuestionsAnsweredExtractor,
+)
+from llama_index.core.node_parser import TokenTextSplitter
+
+text_splitter = TokenTextSplitter(
+    separator=" ", chunk_size=512, chunk_overlap=128
+)
+title_extractor = TitleExtractor(nodes=5)
+qa_extractor = QuestionsAnsweredExtractor(questions=3)
+
+# assume documents are defined -> extract nodes
+from llama_index.core.ingestion import IngestionPipeline
+
+pipeline = IngestionPipeline(
+    # 链式调用
+    # transformations的流程是，先分割文本，再提取标题，最后提取节点中可以回答的提问
+    transformations=[text_splitter, title_extractor, qa_extractor]
+)
+
+nodes = pipeline.run(
+    documents=documents,
+    in_place=True,
+    show_progress=True,
+)
+
+# 或者在插入索引时使用链式调用，提取元数据
+from llama_index.core import VectorStoreIndex
+
+index = VectorStoreIndex.from_documents(
+    # transformations的流程是，先分割文本，再提取标题，最后提取节点中可以回答的提问
+    documents, transformations=[text_splitter, title_extractor, qa_extractor]
+)
+```
+
+### index 索引
+在「检索」相关的上下文中，「索引」即index， 通常是指为了实现快速检索而设计的特定「数据结构」。
+常见的两种索引类型
+ - **向量存储索引** VectorStoreIndex 文档被拆分成节点之后，为每个节点创建 vector embeddings ，以便由LLM进行查询。
+ - 摘要索引 summary index 一种更简单的索引形式，生成文档的文本摘要并创建索引，查询时返回的是整个文档document。
+
+ VectorStoreIndex 返回最相似的嵌入及其对应的文本块。控制返回多少嵌入的参数称为 top_k，k即返回的嵌入数量。
+```python
+from llama_index.core import VectorStoreIndex
+# 文档创建向量索引
+index = VectorStoreIndex.from_documents(documents)
+# nodes创建向量索引
+index = VectorStoreIndex(nodes)
+```
+
+**索引建立后的文档管理 document management** 索引结构允许对document文档进行查看、插入、删除、更新和刷新操作。
+- 创建索引后可将文档插入到索引结构中
+    - 动态添加数据，数据是动态生成或动态获取的。创建索引后，可以根据需要逐步插入文档，而不需要一次性加载所有数据。
+    - 灵活性，通过 insert 方法，你可以在任何时候向索引中添加新的文档，而不需要重新创建整个索引。
+    - 性能优化，在创建索引时，如果初始文档数量非常大，一次性加载所有文档可能会导致内存和性能问题。通过逐步插入文档，可以更好地控制内存使用和性能，特别是在资源有限的环境中。
+- deletion 通过指定document_id，从索引中删除文档
+```python
+# 参数delete_from_docstore
+# True：不仅从索引中删除文档引用，还会从 DocStore 中删除该文档。
+# False：仅从索引中删除文档引用，但不从 DocStore 中删除该文档。
+index.delete_ref_doc("doc_id_0", delete_from_docstore=True)
+```
+
+- update 文档已在索引中存在,可根据文档的doc_id来更新文档
+    ```python
+    # NOTE: the document has a `doc_id` specified
+    doc_chunks[0].text = "Brand new document text"
+    index.update_ref_doc(doc_chunks[0])
+    ```
+- refresh refresh() 函数只会更新具有相同 doc id_ 但不同文本内容的文档。另外，刷新时，如果不在索引中的文档也将被插入。
+    ```python
+    # modify first document, with the same doc_id 修改doc_id_0 的文本
+    doc_chunks[0] = Document(text="Super new document text", id_="doc_id_0")
+
+    # add a new document  这里创建了一个doc_id为doc_id_3 的新文档
+    doc_chunks.append(
+        Document(
+            text="This isn't in the index yet, but it will be soon!",
+            id_="doc_id_3",
+        )
+    )
+
+    # refresh the index 执行刷新操作，这里会更新doc_id_0 和 新插入doc_id_3
+    refreshed_docs = index.refresh_ref_docs(doc_chunks)
+
+    # refreshed_docs[0] and refreshed_docs[-1] should be true 修改的文档和最后添加的文档都会被刷新，索引-1即最后一个添加的文档
+    ```
+- 文档的跟踪，查看已插入的文档
+    ```python
+    print(index.ref_doc_info)
+    """
+    > {'doc_id_1': RefDocInfo(node_ids=['071a66a8-3c47-49ad-84fa-7010c6277479'], metadata={}),
+    'doc_id_2': RefDocInfo(node_ids=['9563e84b-f934-41c3-acfd-22e88492c869'], metadata={}),
+    'doc_id_0': RefDocInfo(node_ids=['b53e6c2f-16f7-4024-af4c-42890e945f36'], metadata={}),
+    'doc_id_3': RefDocInfo(node_ids=['6bedb29f-15db-4c7c-9885-7490e10aa33f'], metadata={})}
+    """
+    ```
+
+
+
+### storing 存储
+数据加载和索引完成，需要存储起来，以避免重建索引的时间和成本。索引默认存储在内存中。
+索引内置持久化方法`.persist()`
+- 持久化，写入磁盘存储索引
+```python
+# 将索引写入磁盘
+index.storage_context.persist(persist_dir="<persist_dir>")
+
+# 从磁盘加载索引
+from llama_index.core import StorageContext, load_index_from_storage
+storage_context = StorageContext.from_defaults(persist_dir="<persist_dir>")
+# 加载索引
+index = load_index_from_storage(storage_context)
+```
+
+- 持久化，vector store 向量存储
+```python
+import chromadb
+from llama_index.core import VectorStoreIndex, SimpleDirectoryReader
+from llama_index.vector_stores.chroma import ChromaVectorStore
+from llama_index.core import StorageContext
+
+# load some documents
+documents = SimpleDirectoryReader("./data").load_data()
+
+# initialize client, setting path to save data
+db = chromadb.PersistentClient(path="./chroma_db")
+
+# create collection
+chroma_collection = db.get_or_create_collection("quickstart")
+
+# assign chroma as the vector_store to the context
+vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
+storage_context = StorageContext.from_defaults(vector_store=vector_store)
+
+# create your index 从文档创建向量索引
+index = VectorStoreIndex.from_documents(
+    documents, storage_context=storage_context
+)
+
+# create a query engine and query 创建query engine并查询
+query_engine = index.as_query_engine()
+response = query_engine.query("What is the meaning of life?")
+print(response)
+
+
+# load your index from stored vectors 从存储的向量加载索引
+index = VectorStoreIndex.from_vector_store(
+    vector_store, storage_context=storage_context
+)
+# create a query engine 创建query engine并查询
+query_engine = index.as_query_engine()
+response = query_engine.query("What is llama2?")
+print(response)
+
+```
+
+- 向量数据库推荐
+    - Alibaba Cloud OpenSearch 云服务，收费，不支持混合检索
+    - Elasticsearch 单机部署或云服务，开源，支持混合检索。适合需要综合搜索和分析功能的场景，适合中小规模的向量数据集，对性能要求不是特别高的场景。
+    - Milvus 单机部署或云服务，开源，支持混合检索，可使用GUP加速。适合需要高性能向量搜索的场景，特别是处理大规模向量数据集。适合专注于向量相似度搜索的应用，如推荐系统、图像搜索、自然语言处理等。
+
+### querying 查询引擎
+query_engine由索引和prompt组成，用于从索引中检索信息，并根据用户输入的prompt生成答案。
+```python
+# 单论输出
+query_engine = index.as_query_engine()
+response = query_engine.query("What is the meaning of life?")
+
+# 流式输出
+query_engine = index.as_query_engine(streaming=True)
+response = query_engine.query("What is the meaning of life?")
+response.print_response_stream()
+
+# 多轮对话
+chat_engine = index.as_chat_engine()
+response = chat_engine.chat("Llama2 有多少参数?")
+print(response)
+response = chat_engine.chat("How many at most?")
+print(response)
+
+# 多轮对话流式输出
+chat_engine = index.as_chat_engine()
+streaming_response = chat_engine.stream_chat("Llama 2有多少参数?")
+# streaming_response.print_response_stream()
+for token in streaming_response.response_gen:
+    print(token, end="", flush=True)
+```
+
+### 查询的三个阶段
+ - Retrieval 召回，检索是指从您的 Index 中找到并返回与您的查询最相关的文档。最常见的一种检索类型是“top-k”语义检索，但还有许多其他的检索策略。
+ - Postprocessing  后处理，将检索到的 Node 可以根据需要重新排序、转换或过滤，例如要求它们具有特定的元数据，如附加的关键词。
+ - Response synthesis 响应合成，将查询、最相关的数据和用户的提示信息结合起来，发送到LLM以返回响应。
+
+ ##### querying engine 的低级API，对查询过程细粒度控制
+ ```python
+
+from llama_index.core import VectorStoreIndex, get_response_synthesizer
+from llama_index.core.retrievers import VectorIndexRetriever
+from llama_index.core.query_engine import RetrieverQueryEngine
+from llama_index.core.postprocessor import SimilarityPostprocessor
+
+# build index
+index = VectorStoreIndex.from_documents(documents)
+
+# configure retriever 配置检索器
+retriever = VectorIndexRetriever(
+    index=index,
+    similarity_top_k=10,
+)
+
+# configure response synthesizer 配置响应合成器
+response_synthesizer = get_response_synthesizer()
+
+# assemble query engine 构建查询引擎
+query_engine = RetrieverQueryEngine(
+    retriever=retriever, # 检索器
+    response_synthesizer=response_synthesizer, # 响应合成器
+    node_postprocessors=[SimilarityPostprocessor(similarity_cutoff=0.7)], # 后处理器
+)
+
+# query
+response = query_engine.query("What did the author do growing up?")
+print(response)
+ ```
+
+
+
+##### 检索器
+检索器负责根据用户查询（或聊天消息）获取最相关的上下文。可以在索引之上构建，但也可以独立定义。它被用作查询引擎（和聊天引擎）中检索相关上下文的关键构建块。
+```python
+# 从索引获取检索器
+retriever = index.as_retriever()
+nodes = retriever.retrieve("Who is Paul Graham?")
+
+# 使用索引特定的检索器类， 这里创建了一个基于摘要的索引器
+retriever = summary_index.as_retriever(
+    retriever_mode="llm",
+)
+```
+##### 检索器模型 Retriever Modules
+- BM25Retriever：基于 tokenizer 实现的 BM25 经典检索算法
+- KeywordTableGPTRetriever：使用 GPT 提取检索关键字
+- KeywordTableSimpleRetriever：使用正则表达式提取检索关键字
+- KeywordTableRAKERetriever：使用RAKE算法提取检索关键字（有语言限制）
+
+
+
+
+
+
+##### 索引模式 Retriever Modes
+- 向量索引检索 vector_index.as_retriever() ，总是返回一个 VectorIndexRetriever
+- 摘要索引检索 summary_index.as_retriever(retriever_mode="llm或者embedding")
+- 树索引检索 tree_index.as_retriever(retriever_mode="select_leaf或者select_leaf_embedding或者all_leaf或者root")
+- 关键词索引检索 keyword_index.as_retriever(retriever_mode="simple或者rake")
+- 知识图谱索引检索 knowledge_graph_index.as_retriever()
+- 文档摘要索引检索 summary_index.as_retriever(retriever_mode="llm或者embedding")
+
+
+##### 检索后处理 Postprocessors 后处理器
+节点后处理器是一组模块，它们接收一组节点，并在返回之前对它们进行某种转换或过滤。例如可以用不同模型**对检索后的 Nodes 做重排序**
+**节点后处理器通常在查询引擎中应用，在节点检索步骤之后和响应合成步骤之前。**
+支持高级 Node 过滤和增强，这可以进一步提高检索到的 Node 对象的相关性。这有助于减少调用/数量LLM或提高响应质量。比如
+KeywordNodePostprocessor ：用于确保某些关键词被排除或包含，通过 required_keywords 和 exclude_keywords 过滤节点
+SimilarityPostprocessor : 通过设置相似度分数的阈值来过滤节点（仅由基于嵌入的检索器支持）
+PrevNextNodePostprocessor：基于节点关系，为检索到的节点对象补充额外的相关上下文。
+MetadataReplacementPostProcessor：用于将节点内容替换为节点元数据中的字段。如果元数据中不存在该字段，则节点文本保持不变。在与其他功能结合使用时最为有用。
+
+```python
+node_postprocessors = [
+    KeywordNodePostprocessor(
+        required_keywords=["Combinator"], exclude_keywords=["Italy"]
+    )
+]
+query_engine = RetrieverQueryEngine.from_args(
+    retriever, node_postprocessors=node_postprocessors
+)
+response = query_engine.query("What did the author do growing up?")
+```
+
+#####  response synthesis 响应合成
+```python
+query_engine = RetrieverQueryEngine.from_args(
+    retriever, response_mode=response_mode #default 或者 compact 或者tree_summarize 或者no_text 或者accumulate
+)
+```
+
+
+<b class="info">RetrieverQueryEngine()：直接初始化，适合参数已知且固定的情况。</b>
+<b class="info">RetrieverQueryEngine.from_args()：工厂方法，适合需要根据不同参数动态创建实例的情况，更加灵活。</b>
+
+
+
+
+### LlamaIndex的核心模块
+![LlamaIndex核心模块](./06-LlamaIndex/llamaindex%20basic.png)
+
+### Building a RAG pipeline with LlamaIndex
+- step1: load data 加载数据
+- step2: transformer the data 转换数据
+- step3: index and store then data 索引并存储数据
+
+#### 1. Reader 数据连接器
+LlamaIndex 通过数据连接器来完成这项工作，也称为 Reader 。数据连接器从不同的数据源中获取数据，并将数据**格式化为 Document** 对象。一个 Document 是数据的集合,以及关于该数据的元数据。
+
+加载本地数据，使用**SimpleDirectoryReader** 这是一个llamaindex自带的简单的本地文件加载器。它会遍历指定目录，并根据文件扩展名自动加载文件（文本内容）。支持各种常见的文档类型csv,pdf,txt,docx,png,mp3,ppt等。
+
+如自带数据连接器无法实现需求(SQL数据库读取，API接口读取)，可以通过llamaindex提供的第三方数据连接器实现。https://llamahub.ai/?tab=readers
+
+#### 2. Transformer 数据转换器 及 Node节点解析模块
+通过 Transformations 定义一个数据（Documents）的多步处理的流程（Pipeline）。 这个 **Pipeline 的一个显著特点是，它的每个子步骤是可以缓存（cache）的**，即如果该子步骤的输入与处理方法不变，重复调用时会直接从缓存中获取结果，而无需重新执行该子步骤，这样即节省时间也会节省 token 
+
+数据加载后，您需要对其进行处理和转换输出Node，然后再将其放入存储系统。这些转换包括分块、提取元数据和嵌入每个块。
+**节点解析器**是一种简单的抽象，它将文档列表分成 Node 对象，使得每个节点是父文档的特定片段。
+<b class="danger">当文档被分解成节点时，它的所有属性都会继承到子节点（即 metadata ，文本和元数据模板等）</b> 
+
+transformer API
+**高级转换API** 封装好的功能，简便操作，可控性低
+```python
+from llama_index.core.node_parser import SentenceSplitter
+text_splitter = SentenceSplitter(chunk_size=512, chunk_overlap=10)
+
+# global 全局settings
+from llama_index.core import Settings
+
+Settings.text_splitter = text_splitter
+
+# per-index
+index = VectorStoreIndex.from_documents(
+    documents, transformations=[text_splitter]
+)
+```
+**低级转换API** 可控性高，高度定制转换过程，文本拆分器、元数据提等操作
+分为四个步骤
+    - 拆分文档为节点Node
+    - 添加元数据
+    - embedding 文本向量化嵌入
+    - 创建索引
+
+##### 如何使用节点解析器
+ - 独立使用
+```python
+from llama_index.core import Document
+from llama_index.core.node_parser import SentenceSplitter
+
+node_parser = SentenceSplitter(chunk_size=1024, chunk_overlap=20)
+
+nodes = node_parser.get_nodes_from_documents(
+    [Document(text="long text")], show_progress=False
+)
+```
+ - 在transformer转换器的**摄取管道**中使用
+```python
+from llama_index.core import SimpleDirectoryReader
+from llama_index.core.ingestion import IngestionPipeline
+from llama_index.core.node_parser import TokenTextSplitter
+
+documents = SimpleDirectoryReader("./data").load_data()
+
+pipeline = IngestionPipeline(transformations=[TokenTextSplitter(), ...])
+
+nodes = pipeline.run(documents=documents)
+```
+ - 在索引中使用
+```python
+from llama_index.core import SimpleDirectoryReader, VectorStoreIndex
+from llama_index.core.node_parser import SentenceSplitter
+
+documents = SimpleDirectoryReader("./data").load_data()
+
+# global
+from llama_index.core import Settings
+
+Settings.text_splitter = SentenceSplitter(chunk_size=1024, chunk_overlap=20)
+index = VectorStoreIndex.from_documents(
+    documents,
+    transformations=[SentenceSplitter(chunk_size=1024, chunk_overlap=20)],
+)
+```
+
+
+
+
+##### 基于文件的节点解析器
+根据解析的内容类型（JSON、Markdown 等）创建节点
+- SimpleFileNodeParser 简单文件解析器（自动使用最适合每种内容类型的节点解析器来创建节点）
+- HTMLNodeParser HTML 节点解析器（根据html文档创建节点）
+- JSONNodeParser JSON 节点解析器（根据json文档创建节点）
+
+##### 节点解析器的文本切分策略
+**SentenceSplitter** 
+- 按指定chunk_size和chunk_overlap参数来控制句子边界，进而来切分文本
+- 适用场景，适用于短文本和细粒度检索。
+    - 短文本处理：适用于处理短文章、新闻摘要、社交媒体帖子等，这些文本通常由简短的句子组成。
+    - 细粒度检索：当需要对文本进行细粒度的检索和分析时，按句子分割可以提供更精确的匹配。
+
+**SentenceWindowNodeParser** 句子窗口节点解析器
+- 将所有文档拆分为单个句子，生成的节点还包含每个节点周围的“窗口”句子信息，具体来说，它决定了每个节点中包含的**前后**连续句子的数量。可以保留更多的上下文信息。例如，如果一个句子的意义需要前一句或后一句来补充，较大的 window_size 可以确保这些句子一起被处理。
+- 适用场景，适用于需要考虑上下文相关性的场景。
+    - 上下文相关性：适用于需要考虑上下文相关性的场景，例如情感分析、问答系统等。通过包含前后文句子，可以更好地理解句子的背景和语境。
+    - 长文本处理：对于较长的文本，按句子窗口分割可以保持上下文的连贯性，同时减少单个节点的长度。
+
+**SemanticSplitterNodeParser** 语义分割节点解析器
+- 不是使用固定大小的块来分割文本，语义分割器自适应地使用嵌入相似性在句子之间选择断点。这确保了“块”包含彼此语义相关的句子。
+- 适用场景，适用于需要保持语义连贯性的场景。
+    - 语义相关性：适用于需要保持语义连贯性的场景，例如文本摘要、主题建模等。通过语义分割，可以确保每个节点包含的是语义上相关的内容。
+    - 复杂文本处理：对于复杂的长文档，语义分割可以帮助更好地组织和管理文本数据，提高检索和分析的效率。
+
+**TokenTextSplitter** 分词文本分割器
+- 基于令牌（token）进行文本分割的。它将文本拆分成一个个小的令牌，然后根据指定的令牌数量来创建节点。适用于需要精确控制每个节点包含的文本长度的场景。例如，在构建索引时，你可能希望每个节点的长度大致相同，以优化存储和检索效率。
+- 适用场景，适用于需要细粒度控制和性能优化的场景。
+    - 细粒度控制：适用于需要对文本进行非常细粒度控制的场景，例如机器翻译、词频分析等。
+    - 性能优化：通过控制每个节点的词数，可以优化内存使用和处理速度，特别是在处理大规模数据集时。
+
+**HierarchicalNodeParser** 基于关系的节点解析器 
+
+- 将文本数据解析成一个层次化的节点结构。每个节点可以包含子节点，形成树状结构。这有助于更好地表示文档的逻辑结构和层次关系。它支持多种分割策略，可以根据段落、章节、标题等逻辑单元来分割文本。这使得解析后的节点更加有意义，便于后续的处理和分析。层次化的节点结构可以提高检索效率。在进行信息检索时，可以通过层次结构快速定位到相关部分，减少不必要的遍历。
+- 首先对输入的文本数据进行预处理，识别出段落、章节、标题等逻辑单元。根据预处理结果，将文本数据分割成多个层次的节点。每个节点可以包含子节点，形成树状结构。每个节点可以包含丰富的属性信息，如节点类型（段落、章节、标题等）、位置信息、内容等。这些属性信息有助于后续的处理和分析。
+- 适用场景，适用于处理长文档和需要保留文本结构的场景。
+    - 长文档处理：适用于处理长文档，如书籍、研究报告等。层次化结构可以帮助更好地组织和管理文档的逻辑结构。
+    - 结构化数据：适用于需要保留文本结构的场景，例如目录、章节、段落等。层次化结构可以提高检索效率和数据的可解释性。
+
+##### pipeline 处理流程过程的持久化处理
+```python
+# 持久化存储到本地硬盘，也可以用远程的 Redis 或 MongoDB 等存储 IngestionPipeline 的缓存
+pipeline.persist("./pipeline_storage")
+
+new_pipeline = IngestionPipeline(
+    transformations=[
+        SentenceSplitter(chunk_size=300, chunk_overlap=100),
+        TitleExtractor(),
+    ],
+)
+
+# 加载缓存
+new_pipeline.load("./pipeline_storage")
+
+# 运行pipeline
+nodes = new_pipeline.run(documents=documents)
+
+```
+
+
+#### 3. embedding 添加嵌入
+llamaindex默认使用openAI的embedded模型，也可以使用本地模型。
+通常在全局global的Settings 对象中指定嵌入模型，然后用于构建向量索引和查询。在pipline中输入文档将被分解成节点，嵌入模型将为每个节点生成一个嵌入embedded。
+```python
+from llama_index.core import VectorStoreIndex, SimpleDirectoryReader
+from llama_index.embeddings.openai import OpenAIEmbedding
+from llama_index.core import Settings
+
+# global default
+Settings.embed_model = OpenAIEmbedding()
+
+# 构建向量索引时使用指定的embedded模型
+documents = SimpleDirectoryReader("./data").load_data()
+index = VectorStoreIndex.from_documents(documents,embed_model=embed_model)
+
+# 查询时，embedded模型将再次用于通过嵌入查询文本
+query_engine = index.as_query_engine()
+response = query_engine.query("query string")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<b class="danger">待解决问题：使用sklearn和matplotlib将embedding后的向量信息降维后，用可视化的方式直观展示出来</b>
+范例：https://www.bilibili.com/video/BV1Hk4y1X7aG/?spm_id_from=333.999.0.0&vd_source=32fa1c202efe5bb6942b35f0c043a7e9
+
+
+
+
+
+
+
+<b class="danger">待解决问题：验证建立索引后，是否能通过索引找到文档</b>
+
+<b class="danger">待解决问题：查看document和node的元数据都有什么</b>
+
+
+
+
+
+
+#### 技巧：
+- 针对持续更新的文档，用什么方法仅刷新有更新的文档，而不更新所有文档？
+    - 对入库的文档设置一个唯一的id号，不同文档之间用唯一的id号区分，同时记录文档的大小，更新日期等，当以上信息变化后就需要重新入库embedding
+- 多个文件检索，如何按照特定的文件名检索
+    - 向量数据库中有个filter的概念，文档入库的时候可以指定metadata，在检索数据库的时候可以利用filter功能过滤只检索满足metadata条件的文档（比如只检索某个key对应value值的文档），即通过filter根据metadata的信息来限定检索文档的范围。
+
+LlamaIndex SDK偏向于数据连接，即广义的基于RAG应用的各种工具支持。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+---
+
+## 6.Langchain
+Langchain 更通用的大模型应用开发框架，提供基于大模型开发的各种工具支持。不同于Llamaindx，更专注于RAG应用。**Langchain是AGI软件工程的一个探索和原型 ，目前还没正式成为行业标准。**
+
+### langchain的流程和基本架构
+![alt text](./07-Langchain/langchain01.png)
+
+### langchain的核心组件
+1. 模型I/O封装
+    - LLMS 模型
+    - chatModel 基于llms的对话模型封装
+    - prompt模板
+    - outputparser 解析输出
+    - #### OutputFixingParser (langchain的利用llm做格式自动纠错)
+        大模型输出具有不确定性，不一定和预期的格式匹配，利用output parser可以自动修正输出格式，以方便后续处理。
+        `new_output = OutputFixingParser.from_llm(parser=parser, llm=ChatOpenAI())`
+    - #### function calling
+        在定义的函数上面使用@tool装饰器，即可实现定义functioncalling。
+2. 数据连接封装
+    - document loaders 文档加载
+    - document transformers 文档处理
+    - text embedding 向量化
+    - vectorstore 向量存储
+    - retriever 向量检索
+3. 对话历史管理
+    - 对话历史存储，加载与**剪裁**
+        - 对话历史不可能无限增长，从成本、可控性、推理效果来看，对话历史需要裁剪（**直接剪裁，或者筛选保留有关联的对话历史，即根据对话历史中与当前用户提问的相关程度进行排序**）。
+        ``` python
+        trim_messages(
+            messages, #多轮消息
+            max_token=45, #限制消息的长度
+            strategy="last", #剪裁策略，从尾部开始裁剪，也可以从头部开始裁剪，也可以从中间开始裁剪。
+            token_counter=ChatOpenAI(model="gpt-4o-mini"), #用于计算token数量的模型
+            include_system=True, #是否包含system message，让模型更了解系统的背景信息
+            allow_partial=True #是否允许部分裁剪，如果设置为True
+            ，则即使无法完全满足max_token，也可以进行裁剪。
+        )
+        ```
+        - 过滤带标识的历史记录。为每一轮的消息自定义两个标签，id和name，即**用这两个自定义的字段给每轮消息打标签**。然后使用filter_message来筛选消息历史，可以从三个字段筛选，按消息角色，按id标签，按name标签
+        ```python
+            filter_messages(
+                messages, #多轮消息
+                include_types=[HumanMessage,AIMessage], # 按角色类型，包含
+                exclude_names=["example1","example2"], # 按name标签，不包含
+                include_ids=["1","2"], #按id标签，包含
+            )
+        ```
+    - 对话历史存储
+        `RunnableWithMessageHistory`
+        ```python
+        def get_session_history(session_id):
+            return SQLChatMessageHistory(session_id,"sqlite:///memory.db")
+        
+        runnable = model | StrOutputParser()
+
+        runnable_with_history = RunnableWithMessageHistory(
+            runnable, # 指定上面定义的runnable
+            get_session_history, #指定自定义的历史管理方法
+        )
+
+        # 调用runnable_with_history
+        runnable_with_history.invoke(
+            [HumanMessage(content="你好")],
+            # 指定自定义的配置参数在调用runnable_with_history时，获取指定session_id的历史记录
+            config={"configurable":{"session_id":"123"}},
+        )
+        ```
+        **通过使用 RunnableWithMessageHistory。每次调用（invoke）之后，新的对话消息会被自动存储和管理，而不是丢失。RunnableWithMessageHistory会自动存储每次调用的对话消息，包括用户的输入和模型的输出。** 默认存储在内存中。可以实现自定义的消息历史存储机制。
+4. **架构封装**
+    - #### <b class="danger">chain</b> LCEL(langchain expression language)
+        链式调用，实现一个功能或一系列顺序功能的组合。LangChain Expression Language（LCEL）是一种声明式语言，可轻松组合不同的调用顺序构成 Chain。LCEL 自创立之初就被设计为能够支持将原型投入生产环境，无需代码更改，从最简单的“提示+LLM”链到最复杂的链（已有用户成功在生产环境中运行包含数百个步骤的 LCEL Chain）。
+        LCEL支持，流，异步，并行，重试和回退，访问中间过程，输入输出模式，与langsmith集成，与langserve集成。**基于某个特定的任务可以定义一个完整的chain,然后开源发布到langchain hub上。**
+        **chain和runnable两者概念相同**
+        **基于工厂模式创建chain** 通过更改配置而不是改代码，来快速地调整链的配置。`configurable_alternatives` **可以对chain流程中的每个组件，比如模型，prompt，outputparser设置工厂模式**
+        ```python
+        # 通过configurable_alternatives 配置按指定字段选择模型
+        model=gpt_model.configurable_alternatives(
+            ConfigurableField(id="llm1"), #指定可配置的字段名叫llm1
+            default_key='gpt', #如果不指定，则默认名称叫gpt的模型
+            ernie=ernie_model, #当前指定的模型是文心一言的模型ernie_model
+        )
+
+        # 通过指定llm1 这个id来调整模型为claude
+        ret=chain.with_config(configurable={"llm1":"claude"}).invoke('请自我介绍')
+        ret=chain.with_config(configurable={"llm1":"gpt"}).invoke('请自我介绍') 
+        ```
+    - #### agent 
+        根据用户输入自动规划执行步骤，自动选择每个步骤需要的工具，进而完成指定任务。
+        ![](./07-Langchain/agent-overview.png)
+5. callbacks模型调用封装
+6. langserve 部署框架
+langserve 部署后在127.0.0.1：9999/joke/playground/ 中会开启一个服务，可查看运行过程进行调试。
+
+
+#### langchain的缺陷
+langchain的流式调用无法中途停止。
+
+
+
+
+
+
+<b class="danger">待解决问题</b>
+<b class="danger">1.langchain中的function calling的过程</b>
+
+<b class="info">技巧：</b>
+<b class="info">1. 针对prompt，从代码中剥离出来，放在外部文件中以解耦管理。langchain中有PromptTemplate类可实现 </b>
+<b class="info">2.langchain的多轮对话历史，存在redis缓存中，不建议存sql数据库中因为太慢，参考官方文档或者自己设计。常见成熟的方法是把对话历史存到向量数据库中，然后用RAG方式回传，因为对话历史比较多，历史对话中的每句话不一定跟当前的用户提问相关。</b>
+<b class="info">3. 实际开发中，可以引用langchain sdk中的模型I/O封装模块，这部分的llms分装，prompt模板封装，结构化输出，输出错误校准，functioncalling都比较成熟</b>
+<b class="info">4. 文档连接器这部分，可以引用llamaindex封装的模块</b>
+<b class="info">5. 对于function calling，如果对于线上稳定性要求很高的服务场景，用prompt去控制大模型解析对话中的具体需求，然后根据解析的结果手工调function。**不要依赖大模型自身的function calling调用机制** </b> 
+
+
+
+historyplaceholder
+pydantic
+openai指定输出格式的描述
+输出格式自动修复
+故障回退原理
+
+
+
+
+
+
+
+设计模式：工厂模式，建造者模式
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+---
+## 7.LLM 运营维护SDK
+大模型应用开发完成后，以云服务的形式给用户提供服务，需要一套机制记录用户的交互历史，交互行为以及大模型返回了什么结果，类似log日志系统监控记录整个流程。对于支撑这个**运维，测试，监控**的过程的SDK，有**langFuse、langsmith**
+
+
+### 维护生产级的LLM应用，需要做哪些工作
+1. 各类指标监控与统计，访问记录，响应时长，token用量，计费
+2. 调试prompt
+3. 测试验证系统的相关评估指标
+4. 数据集管理（回归测试），验证模型经过升级开发后在相同的测试数据集上，模型的输出是否达到预期。
+5. prompt模板管理（升级回滚）
+
+langFuse:开源，SAAS服务免费（一定额度）/收费，langsmith平替，可集成langchain，也可集成其他框架
+langSmith:非开源，SAAS服务免费（一定额度）/收费，**收费版支持私有部署**，只能与langchain集成。
+
+
+<b class="info">技巧：</b>
+<b class="info">1. 国产开源私有模型部署推荐deepseek，72B的千问2.5</b>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+---
+
+
+# 预训练模型transformer,Bert的前世今生
+博客配套视频链接: https://space.bilibili.com/383551518?spm_id_from=333.1007.0.0 
+b 站直接看配套 github 链接：https://github.com/nickchen121/Pre-training-language-model
+配套博客链接：https://www.cnblogs.com/nickchen121/p/15105048.html
+
+## 1.预训练有什么用
+机器学习：偏数学
+深度学习（人工智能）的项目：大数据支持（主流）。
+
+#### 预训练在图像领域的应用
+通过一个已训练好的模型A，去完成一个小数据量的任务B（**使用了模型A的浅层参数**，即用到了**CNN**模型**浅层参数通用的特性**。
+任务A和任务B是非常相似的，比如人脸识别，人脸识别任务B是识别人脸，人脸识别任务A是识别人脸的细节，比如眼睛，嘴巴，胡须，胡须的形状，胡须的粗细，胡须的浓淡等。
+
+预训练的方式：
+**冻结**，已训练好的浅层参数值不变，即浅层可以是通用的。
+**微调**，浅层参数会跟着新任务的训练而改变
+
+预训练怎么用：faiseq库,transformers库
+
+## 2.统计语言模型（n元语言模型）
+##### 语言模型
+语言（人说的话）+模型（某个东西，完成某个任务）
+语言模型最常见的两个任务：
+- 计算一句话的概率，语言二分类，即某句话出现的概率（是或否）
+- 计算下一个词可能是什么，即语言生成，根据上已知上文给出下一个词
+
+##### 统计语言模型
+统计的方法去解决以上两个任务（条件概率）：
+- 对于语言二分类问题，先将一句话分词，然后使用概率的链式法则（概率论），来统计句子中每个词出现的概率，然后连乘就是这句话出现的概率。
+- 对于语言生成问题，通过词库集合来反复计算符合条件（完形填空）的词的概率，然后取概率最大的词作为下一个词。这种方式的计算成本和时间是很大的，所以出现了把原句中的N个词，取2个词（2元），取3个词（3元），取N个词（n元）进行计算概率的方式即n元语言模型，这样降低计算成本。
+
+如何进行N元计算
+1.词性是动词
+2.判断单词的词性
+3.磁性很强的磁铁
+4.北京的词性是名词
+
+以上句子中，出现的字的次数是3，同时出现词性和的的次数是2，所以：
+p(词性|的) = $\frac{count(词性,的)}{count(的)}$ = $\frac{2}{3}$
+
+**平滑策略**，防止出现分子分母都是0的情况。
+
+
+## 3.神经网络语言模型 transformer
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
