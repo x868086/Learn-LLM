@@ -561,11 +561,14 @@ embedding模型的选择：https://www.bilibili.com/video/BV1GPS4YfEtu/?spm_id_f
 
 #### 五、如何选择PDF文档解析器
 RAG的数据取决于两方面，一是数据的来源，二是对数据的解析。
-- marker pdf转换器MARKER，转成markdown格式。或者选择docling
-- llamaParse 基于AI能力的解析工具
+- **marker** pdf转换器MARKER，转成markdown格式。或者选择docling。
+- **llamaParse** llamaindex的基于AI能力的解析工具IDP。这类库可将复杂的文档解析为markdown格式，但可扩展性差，高延迟。
+- **Tesseract** OCR这类库较成熟，能捕获文档结构和布局，但高延迟。
+![pdf-tools](./04-RAG/pdf-tools.png)
 
-
-
+- 安装marker
+    - pip install marker-pdf
+    - pytorch 页面选择合适的版本安装pytorch 
 
 
 ### 过召回重排序 sentence-transformers
