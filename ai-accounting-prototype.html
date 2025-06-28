@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI记账App原型</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+
+        .prototype-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+        }
+
+        .screen {
+            width: 360px;
+            height: 640px;
+            background: white;
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .screen-title {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        /* 登录页面样式 */
+        .login-form {
+            padding: 20px;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        .input-field {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            margin-top: 5px;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px;
+            background: #007AFF;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            margin-top: 10px;
+            cursor: pointer;
+        }
+
+        /* 首页样式 */
+        .balance-card {
+            background: #007AFF;
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .quick-actions {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .action-item {
+            text-align: center;
+            padding: 10px;
+        }
+
+        .action-icon {
+            font-size: 24px;
+            margin-bottom: 5px;
+            color: #007AFF;
+        }
+
+        /* 账单列表样式 */
+        .bill-list {
+            margin-top: 15px;
+        }
+
+        .bill-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        /* 底部导航栏 */
+        .bottom-nav {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: space-around;
+            padding: 10px;
+            background: white;
+            border-top: 1px solid #eee;
+        }
+
+        .nav-item {
+            text-align: center;
+        }
+
+        /* AI识别页面样式 */
+        .scan-area {
+            border: 2px dashed #007AFF;
+            border-radius: 12px;
+            height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 20px 0;
+        }
+
+        /* 数据分析页面样式 */
+        .chart-container {
+            height: 200px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            margin: 10px 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* 个人中心样式 */
+        .profile-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: #007AFF;
+            margin: 0 auto 10px;
+        }
+
+        .menu-list {
+            list-style: none;
+        }
+
+        .menu-item {
+            padding: 15px 0;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="prototype-container">
+        <!-- 登录页面 -->
+        <div class="screen">
+            <h2 class="screen-title">登录/注册</h2>
+            <div class="login-form">
+                <div class="input-group">
+                    <input type="text" class="input-field" placeholder="手机号">
+                </div>
+                <div class="input-group">
+                    <input type="password" class="input-field" placeholder="密码">
+                </div>
+                <button class="btn">登录</button>
+                <button class="btn" style="background: #f5f5f5; color: #333; margin-top: 10px;">注册</button>
+            </div>
+        </div>
+
+        <!-- 首页 -->
+        <div class="screen">
+            <h2 class="screen-title">首页</h2>
+            <div class="balance-card">
+                <h3>本月支出</h3>
+                <h1>¥ 2,580.00</h1>
+                <p>预算剩余：¥ 1,420.00</p>
+            </div>
+            <div class="quick-actions">
+                <div class="action-item">
+                    <i class="fas fa-camera action-icon"></i>
+                    <div>扫票</div>
+                </div>
+                <div class="action-item">
+                    <i class="fas fa-plus action-icon"></i>
+                    <div>记账</div>
+                </div>
+                <div class="action-item">
+                    <i class="fas fa-chart-pie action-icon"></i>
+                    <div>统计</div>
+                </div>
+                <div class="action-item">
+                    <i class="fas fa-wallet action-icon"></i>
+                    <div>预算</div>
+                </div>
+            </div>
+            <div class="bill-list">
+                <div class="bill-item">
+                    <div>
+                        <i class="fas fa-utensils"></i>
+                        午餐
+                    </div>
+                    <div>-¥35.00</div>
+                </div>
+                <div class="bill-item">
+                    <div>
+                        <i class="fas fa-shopping-bag"></i>
+                        购物
+                    </div>
+                    <div>-¥128.00</div>
+                </div>
+            </div>
+            <div class="bottom-nav">
+                <div class="nav-item">
+                    <i class="fas fa-home"></i>
+                    <div>首页</div>
+                </div>
+                <div class="nav-item">
+                    <i class="fas fa-list"></i>
+                    <div>账单</div>
+                </div>
+                <div class="nav-item">
+                    <i class="fas fa-chart-bar"></i>
+                    <div>统计</div>
+                </div>
+                <div class="nav-item">
+                    <i class="fas fa-user"></i>
+                    <div>我的</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI识别记账页面 -->
+        <div class="screen">
+            <h2 class="screen-title">AI识别记账</h2>
+            <div class="scan-area">
+                <i class="fas fa-camera" style="font-size: 48px; color: #007AFF;"></i>
+            </div>
+            <div style="text-align: center; margin: 20px 0;">
+                <p>将票据放入框内</p>
+                <p>自动识别金额和类别</p>
+            </div>
+            <button class="btn">开始扫描</button>
+            <div style="margin-top: 20px;">
+                <h3>最近记录</h3>
+                <div class="bill-list">
+                    <div class="bill-item">
+                        <div>
+                            <i class="fas fa-receipt"></i>
+                            超市购物
+                        </div>
+                        <div>-¥156.80</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 数据分析页面 -->
+        <div class="screen">
+            <h2 class="screen-title">消费分析</h2>
+            <div class="chart-container">
+                支出分类饼图
+            </div>
+            <div class="chart-container">
+                月度趋势图
+            </div>
+            <div style="margin-top: 20px;">
+                <h3>AI建议</h3>
+                <div style="padding: 10px; background: #f8f9fa; border-radius: 8px; margin-top: 10px;">
+                    <p>本月餐饮支出较高，建议控制外卖频率，可以节省约200元。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 个人中心页面 -->
+        <div class="screen">
+            <h2 class="screen-title">个人中心</h2>
+            <div class="profile-header">
+                <div class="avatar"></div>
+                <h3>用户名</h3>
+            </div>
+            <ul class="menu-list">
+                <li class="menu-item">
+                    <span><i class="fas fa-cog"></i> 账户设置</span>
+                    <i class="fas fa-chevron-right"></i>
+                </li>
+                <li class="menu-item">
+                    <span><i class="fas fa-bell"></i> 消息通知</span>
+                    <i class="fas fa-chevron-right"></i>
+                </li>
+                <li class="menu-item">
+                    <span><i class="fas fa-question-circle"></i> 帮助中心</span>
+                    <i class="fas fa-chevron-right"></i>
+                </li>
+                <li class="menu-item">
+                    <span><i class="fas fa-info-circle"></i> 关于我们</span>
+                    <i class="fas fa-chevron-right"></i>
+                </li>
+            </ul>
+            <button class="btn" style="margin-top: 30px;">退出登录</button>
+        </div>
+    </div>
+</body>
+
+</html>
