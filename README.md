@@ -10,8 +10,9 @@
     .warning {
         padding:5px;
         display:inline;
-        color:#E65100;
-        background-color:#FFE0B2;
+        color:#000001;
+        font-weight:bold;
+        background-color:#FFD600;
         width:100%;
     }
     .danger {
@@ -2865,7 +2866,7 @@ xxxxx
 **DashScope** 专注于提供高性能的模型推理和调用能力。
 **百炼和DashScope的区别**,百炼侧重于大模型的开发、微调和应用构建；灵积则专注于大模型的推理服务和高性能调用。
 
----
+
 ## 模型微调
 微调就像给大模型进行**有针对性的补习**，强化**专业领域**、**特定需求的知识**。在预训练的基础上，**使用特定领域的数据对模型进一步的训练**，让大模型更懂你。微调可实现风格化（特定领域风格），格式化（特定输出格式要求）。
 
@@ -2877,10 +2878,111 @@ xxxxx
 过拟合，学生只记住了题目和答案（在训练数据集上表现优异），在测试数据集和实际应用中效果差。欠拟合，训练过程过于简单，导致模型在训练数据集和测试数据集上表现都不好。
 
 
+**模型微调的决策依据**
+1. 明确要通过大模型微调解决的具体业务问题和应用场景。例如，复杂的自然语言生成、意图识别等任务可能受益于大模型微调。特定于某个领域或任务的语言能力，如法律文书分析、医学文本理解。
+2. 是否有具体的业务指标来衡量微调前后效果对比？
+3. 是否有足够的高质量领域特定数据。当前的系统中是否能提取出足够的标注数据用于训练。
+4. 数据的合规与隐私。还要关注模型偏见、过拟合、泛化能力不足等潜在风险。
+5. 资源和技术的可行性。GPU资源、存储空间以及可能的专家人力成本，需要做ROI成本效益分析。
+
+**微调的流程**
+1. 数据准备
+收集数据（例如之前的交互记录、常见问题及回答等）
+清洗数据（清洗这些数据，去除敏感信息，保证数据的质量）
+2. 选择模型 
+3. 模型微调
+标注数据，对数据进行标注以支持监督学习。
+运行微调程序，调整模型的参数使其更适应你的业务数据。
+4. 模型评测。
+在准备训练集的同时，准备一份与训练集格式一致的评测集，该评测集用来评测微调后模型的效果。百炼有模型评测功能。
+5. 模型集成
+编写代码将模型调用集成到现有的业务流程中去，确保API调用遵循数据保护法规，增加身份验证和权限空值。
+6. 测试与优化
+开发环境和测试环境测试API调用和模型集成，根据测试结果优化模型性能
+7. 模型部署
+8. 监控与维护  定期评估模型以适应新数据和业务变化。
+9. 持续迭代
+
+**微调的方式**
+1.全参微调 **Full Fine Tuning**
+在预训练模型的基础上进行全量参数微调的模型优化方法，只要有参数，就会被调整。全参数微调，往往也需要较高的训练成本。
+2.高效微调 **Paramerter-Efficient Fine Tuning**
+降低微调参数的数量和计算复杂度的同时提高预训练模型在新任务上的性能，缓解微调预训练模型的训练成本。只需要调整某几层网络的参数即可。
+
+常见的高效微调技术
+<b class="danger">微调时并不是训练参数越多效果越好</b> 
+
+**LoRA(低秩适应)**
+不对原模型做微调，而是在原始模型旁边增加一个旁路，通过学习小参数的低秩矩阵来近似模型权重矩阵的参数更新，训练时只优化低秩矩阵参数，通过降维度再升维度的操作来大量压缩需要训练的参数。LoRA微调是一种效果与全参微调接近，并且最通用的高效微调方法之一。
+
+**Adapter Tuning**
+该方法会在原有的模型架构上，在某些位置之间插入Adapter层，微调训练时只训练这些Adapter层，而原先的参数不会参与训练。该方法可以在只额外增加3.6%参数的情况下达到与全参数微调相似的效果。缺点：Adapter Tuning 的适配器层本身会在推理中引入额外的计算消耗，产生推理延迟。
+
+**Prefix Tuning**
+不改变原有模型的结构，而是给文本数据的token之前构造一段固定长度任务相关的虚拟token作为前缀Prefix。训练的时候只更新这个虚拟token部分的参数，而其他部分参数固定。这些前缀向量可以视为对模型进行引导的“指令”，帮助模型理解即将处理的任务。由于只需学习远少于模型全部参数数量的前缀向量，这种方法极大地减少了内存占用和计算成本。缺点：Prefix Tuning 难以优化，性能随着可训练参数规模非单调变化，会引入前缀序列占用处理下游任务的序列长度（导致每次请求时产生更大的tokens消耗）。
+
+**prompt Tuning**
+一种轻量高效的微调方法，其原理与Prefix Tuning类似，但仅在输入层加入可训练的prompt tokens向量（而非像Prefix Tuning那样作用于每层Transformer）来引导模型输出。这些提示词向量并不一定放在问题的前边，也可以针对不同的任务设计不同的提示词向量。微调训练只对这些前缀提示词向量进行更新，从而不修改大模型本身的参数，大幅减少训练参数。该方法更适合分类、问答等任务，复杂生成任务效果可能不如其他方法（如Prefix Tuning）。缺点：会引入前缀序列占用处理下游任务的序列长度（导致每次请求时产生更大的tokens消耗）。
+
+
+
+
+
+
+## 大模型的安全合规
+**模型的风险**
+1. 个人信息风险
+风险来源
+- 模型训练阶段 训练数据中涉及各类个人信息，且对**个人信息未做匿名化处理**，导致个人信息可能**被模型学习和存储**。
+- 模型推理阶段 用户与模型的交互过程中，可能会输入个人信息，**模型生成内容**时会包含或者**重现**这些个人信息，导致**隐私**泄露。
+
+2. 内容安全风险
+模型生成文本、图片、音视频、代码等内容时，可能出现不安全、不合法、违反道德伦理的问题。包含但不限于，虚假信息，偏见信息，不良信息，违法信息。
+- 训练数据问题 **训练数据存在偏见和不良信息、违法信息。**训练数据**数据源单一**，或质量不高，导致申城内容的**片面性和失实性。**
+- 模型缺陷 **模型缺乏有效机制**来识别和修正偏见、错误和不良信息。模型的**算法设计缺陷**，导致在特定领域和情景下**生成有害内容**
+- 使用过程的问题 用户输入的信息违法、偏见或不良内容，**影响生成结果（prompt攻击）**。
+- 社会环境和公共隐私 公众对**生成内容难以辨别特别是专业领域**（医疗、金融、投资规划等），导致决策错误产生安全事件。
+
+3. 模型安全风险
+- 传统软件和信息技术安全问题
+后门漏洞：（模型中植入后门，使其在特定条件下生成意外或有害内容）
+数据窃取：敏感数据在训练，测试和使用过程中被盗
+逆向工程：逆向工程提取模型训练数据或敏感信息
+- 生成模型特有的安全问题
+公平性问题：模型在训练数据中继承或放大原有偏见。
+鲁棒性：模型对不常见的或对抗性样本时，生成错误或有害内容。
+可解释性：模型的黑盒性质，增加了安全风险和责任不明
+
+4. 知识产权风险
+- 训练阶段 训练数据中包含让人著作，商标，技术成果等。数据来源通过爬取方式获取，难以辨别是否获得授权。
+- 内容生成与传播阶段 生成式AI生成的内容知识产权权利归属问题仍存有争议。
+
+
+**风险治理**
+1. 个人信息合规
+- 在收集和处理用户个人信息时，确保用户知情并自愿同意收集和处理其个人信息。确保数据真实性和多样性（提升普适性和鲁棒性）。不得非法披露用户输入的信息和使用记录。
+- 训练数据分级，个人敏感信息分类管理。使用**阿里云数据安全中心**对数据分类分级别
+- 隐私数据保护处理 个人信息去标识化，使用**阿里云数据安全中心** 对数据进行**脱敏**。传输和存储个人敏感信息采取加密措施，使用阿里云加密服务，阿里云数字整数在传输过程中加密。
+- SFT 监督微调阶段，让模型学会拒绝对个人信息的非法query，价值观对齐，在线服务过滤不当请求。
+
+2. 内容安全保障
+- 标准回答 预置标准答案，避免生成风险内容。
+- query风险识别 判断是否涉及敏感信息，内容安全等风险。使用阿里云内容安全的文本审核功能。
+- 基于知识库的搜索增强，引导模型生成符合事实的内容。
+- response风险识别 在输出前进行一次过滤，拦截风险内容。阿里云内容安全的文本审核功能。
+- 添加AIGC声明，添加生成内容的来源和依据。
+- 模型风向评测 定义风险，制定benchmark(评估基准)，使用风险query和benchmark对模型进行评测。使用百炼的模型评测功能。
+- 预训练 -- 监督微调SFT --基于人类反馈的强化学习RLHF中训练语料、监督微调语料的安全审核，强化学习结果的评价。
+- 模型的鲁棒性（对抗性攻击测试）、公平性（训练数据多样性、无歧视偏见）
+
+
+
+
+
 
 
 --- 
-# API调用模型
+# DashScope 积灵 API调用模型
 temperature:调整模型生成内容的随机性，通过改变 **Token 概率分布**的平坦程度来影响生成结果。数值越低，概率分布越陡峭，生成内容更加集中和确定；反之概率分布越平坦，生成内容越多样化和创造性。
 top_k:限制模型从最高概率的前 k 个 Token 中进行选择。top_k 关注的是固定数量的候选 Token，而不是积累概率。
 top_p:累积概率 就是把模型生成下一个词时，所有可能的候选词**按照它们的概率从高到低排序，然后逐步加起来，直到总和达到某个值**的过程。**top_p只考虑那些可能性较高的词**，忽略那些概率很低的词。
@@ -2910,6 +3012,29 @@ seed:设置seed参数会使文本生成过程更具有确定性，用于使模�
 
 
 ## Function Calling
+
+**function calling** 是模型**调用函数的一种能力**，如果模型能够**挑选函数，能解析出函数执行时需要的参数，并根据函数执行结果给出最终答案**，则模型具有**function calling的能力**。
+![function calling的流程](./note-image/function%20calling%20流程.png)
+
+
+1. openAI服务器应用（具有完整的功能，对话缓存，界面等） 并不是直接调用的模型，而是调用的API接口（http接口封装的功能），这个API接口内部所调用的，才是真正的gpt-4o模型
+2. API拿到请求后，会将请求**进行转换**，然后发给gpt-4o模型。gpt-4o模型返回结果之后，API会把模型的返回内容同样做一次转换之后，通过API接口发给openAI服务器应用
+3. 模型的输入和输出，是和模型API的输入和输出是不同的，中间是需要一个转换过程的。其原因是，由于每个模型训练方法的差异，每个模型能接受的参数格式和输出的内容格式有所不同，所以这一层的转换是必须的。
+4. function calling 是作用在模型API--OpenAI服务器这两者之间的。而不是OpenAI服务器和函数之间。本质是由模型做出调用函数的决策，通过模型API间接调用函数。由于实际生产中，用户和开发者无法直接去操作各类厂商的模型，**本质上还是通过厂商提供的模型API去间接调用模型**，所以function calling能力即 **模型API调用函数的能力**。 只要模型具备function calling的能力，那么对应模型API就具备function calling 的能力，毕竟模型API与模型之间仅仅只有一些转换逻辑。
+
+#### Function Calling 的协议内容
+协议规定了工具列表（函数列表）如何传给模型API，模型API如何返回所挑选的工具（函数），以及函数调用的参数。**各厂商**的function calling的协议**大致相同**，仍然有**细微的差异**。
+
+在模型返回的首轮信息中，需要做判断，**检查首轮返回信息中模型是否想要调用函数**，如果模型需要调用函数则把函数名称及参数解析出来，然后执行工具（在Open AI服务器中执行，需自行组织代码逻辑）
+
+#### Function Calling 与 MCP的关系
+<b class="success">MCP的本质是一套函数的发现与调用协议</b>
+MCP作用于OpenAI服务器和函数之间，**MCP规定了一套统一的服务器发现函数，调用函数的协议**，MCP与模型之间没有直接关系，有直接关系的是Function Calling。MCP和function calling分别作用在链路的两个不同环节，发挥的作用各不相同，彼此之间无替换一说。
+![MCP和function calling之间的区别](./note-image/MCP和function%20calling之间的关系.png)
+
+
+
+
 
 发起function calling 之前需要在messages 中添加 System Message 和 user message，在 System Message 中强调何时调用工具通常会提高工具调用的准确率。
 
@@ -2957,7 +3082,7 @@ tool_choice:{
     })
 
   ```
-- 再次调用chat函数，传入上面append后的messages数组，获取最终内容
+- 再次调用chat函数，传入上面append后的messages数组，获取最终回复的答案
     ```python
     second_res =  chat(messages)
     second_msg = second_res.output.choices[0].message.content
@@ -2968,15 +3093,264 @@ tool_choice:{
 
 
 
+## MCP
+模型上下文协议，让大模型能更好的使用各类工具的统一协议。
+
+**JSON-RPC**
+是一种轻量级的远程过程调用协议，开发者不用关注底层实现细节，使用起来更简单。
+__基于 JSON__：使用 JSON 格式编码请求和响应数据。
+__无状态__：每个请求相互独立，不依赖会话上下文
+**简单规范**：请求调用仅需四个元素，**jsonrpc** rpc版本， **method**要调用的远程方法名，**params** 方法参数, **id** 请求唯一标识符。执行结果response 包括，**jsonrpc** rpc版本，**result** 响应结果，**error** 错误信息，**id** 请求唯一标识符，**需要与客户端发起请求的id一致**。
+
+
+
+在mpc中JSON-RPC的作用，工具调用标准化，资源访问桥梁，跨语言兼容性。
+**use_mpc_tool** 工具本质上是通过JSON-RPC格式向MCP server发送请求，并接收响应。
+```xml
+<use_mcp_tool>
+<server_name>weather-server</server_name>
+<tool_name>get_forecast</tool_name>
+<arguments>{"city": "Beijing"}</arguments>
+</use_mcp_tool>
+```
+```python
+{
+  "method": "get_forecast",
+  "params": {"city": "Beijing"},
+  "id": "auto_generated_id"
+}
+```
+
+**access_mcp_resource** 工具同样基于JSON-RPC协议实现资源获取。
+```xml
+<access_mcp_resource>
+<server_name>docs-server</server_name>
+<uri>/api/v1/spec</uri>
+</access_mcp_resource>
+```
+
+```python
+{
+  "method": "accessResource",
+  "params": {"uri": "/api/v1/spec"},
+  "id": "req_002"
+}
+```
 
 
 
 
 
+**mcp hosts, mcp server, mcp client三者之间的关系**
+- host部署server → server提供服务 → client调用服务
+- host是基础设施，server是服务实现，client是服务使用者
+
+**MCP host**
+本质上是一个支持mcp协议的**软件**，常见的mcp host有claude desktop ,cursor, cline, cherry studio.
+
+
+**MCP client**
+- 调用MCP服务的终端程序
+- 通过MCP协议与server通信
+- 不直接与host交互
+- 一个client可以连接多个server
+
+
+**MCP server**
+一个遵循MCP协议规范的**程序**，与远程服务器的概念不同。大部分的mcp server都是通过本地运行nodejs程序、python程序来启动的，在使用的过程中可能会联网也可以不联网。
+mcp中的各种tool 对应的概念是各种函数，比如一个处理天气的mcp server, 其中包含两个函数,天气信息函数get_forecast 和 地区天气预警函数get_alerts
+- 指实现了MCP协议的服务端程序
+- 负责提供具体的工具和资源服务
+- 可以是一个物理服务器或软件服务实例
+- 核心功能是接收、处理并响应client的请求
+
+
+在cline中通过配置文件，新增一个mcp server
+```json
+{
+    "mcpServers":{
+        "weather":{ //weather是mcp server的名字
+            "disabled":false, // 是否被禁用
+            "timeout":3000, 
+            "command":"uv", // 指定运行mcp server的程序，用什么运行这个server,可以是nodejs 也可以是python
+            "args":[
+                "--directory",
+                "/users/joeygreen/PycharmProjects/weather",
+                "run",
+                "weather.py"
+            ],
+            "transportType":"stdio" // cline和mcp server之间通信的方式,这里是标准输入输出，也可以是sse
+        }
+    }
+}
+```
+
+#### MCP交互流程
+1. 使用json配置文件在cline中配置一个mcp server
+2. cline 使用json配置文件中的命令去执行这个程序
+3. cline 和 mcp server之间通过通信，获取到mcp server 有哪些工具可供使用，以及如何使用。cline会记住这些工具的信息。
+4. 用户向cline提问关于天气的问题，**cline将问题传给大模型，同时cline还会向模型提供已注册的mcp server，以及每个mcp server所对应的工具信息**。
+5. 模型思考后决策是否需要使用工具，并将需要调用的工具名称及参数信息返回给cline
+6. cline再将调用信息及参数发送给mcp server，mcp server执行对应函数，将结果返回给cline
+7. cline将结果返回给大模型,生成最终答案。
+8. 大模型将最终答案返回给cline, cline再返回给用户
+![mcp交互流程](./note-image/mcp%20server执行流程.png)
+
+mcp server 工具的内容
+![mcp工具的内容](./note-image/MCP%20server%20中的内容.png)
+
+
+**如何使用已有的mcp server**
+mcp server市场网站查询
+- python 启动的mcp server 的命令 uvx,uv
+  `uvx start.py`
+  `uv run start.py`
+  ```json
+    {
+        "mcpServers":{
+            "fetch":{
+                "command":"uvx",
+                "args":["mcp-server-fetch"]
+            }
+        }
+    }
+  ```
+- nodejs 启动的mcp server 的命令 npx
+  ```json
+    {
+        "mcpServers":{
+            "mcp-server-hotnews":{
+                "command":"npx",
+                "args":["-y", "@wopal/mcp-servers-hotnews"]
+            }
+        }
+    }
+  ```
+
+
+#### mcp 使用MCP底层协议直接与mcp server交互
+只需要保证发送给mcp server的数据符合mcp协议格式即可，可以不需要cline，以下这个过程模拟了mcp host的行为。
+1. 在本地环境中运行某个mcp server
+2. 在命令行中输入并执行符合mcp协议格式的命令
+   ```json
+    {
+        "method": "initialize",
+        "params": {
+        "protocolVersion": "2024-11-05",
+        "capabilities": {},
+        "clientInfo": {
+        "name": "马克的技术工作坊",
+        "version": "1.0.0"
+        }
+        },
+        "jsonrpc": "2.0",
+        "id":0
+    }
+   ```
+3. mcp server 返回的结果
+   ```json
+    {
+        "jsonrpc": "2.0",
+        "id":0,
+        "result": {
+        "protocolVersion": "2024-11-05",
+        "capabilities": {
+        "experimental": {}
+        },
+        "prompts": {
+        "listChanged": false },
+        "resources": {
+        "subscribe": false,
+        "listChanged": false },
+        "tools": {
+        "listChanged": false },
+        "serverInfo": {
+        "name": "weather",
+        "version": "1.6.0"
+        }
+        }
+    }
+   ```
+换个角度思考，甚至不需要调用mcp开发库，也能开发一个mcp server,即只需要保证自定义的mcp server程序交互的过程符合mcp协议定义的交互规范、消息规范即可。
+
+#### MCP协议的真实含义与定位
+MCP协议的内容定义了MCP server 和cline(mcp client)之间的交互环节，**与模型没有关系**。
+**MCP协议**主要规定了两部分内容（**函数、资源的注册和使用**），MCP协议本身没有规定与模型的交互方式。
+1. 每个mcp server的函数列表，即有哪些函数可以调用，哪些资源可以调用
+2. 如何调用这些函数、资源
+不同的mcp host与模型的交互方式有很大差异，比如cline使用的是xml格式与模型沟通，其他mcp hosts可能是基于function calling方式与模型沟通。
+
+<b class="danger">MCP协议并没有规定如何与模型的交互</b>
+
+
+#### 创建mcp server
+**mcp server tools**
+构建好mcp server 代码逻辑后，使用mcp cli 命令行工具进行调试。开始调式前，如果项目指定了某个虚拟环境则一定要先激活当前项目的python虚拟环境`source ./envname/Scripts/activate`
+<b class="danger">如果不激活则会创建一个默认的虚拟环境，导致代码无法运行。</b> 
+`mcp --help`
+`mcp dev weather.py` 命令开启调试，根据项目执行提示，打开调试页面
+`mcp run --active D:\mcp-server-weather\weather.py`
+`mcp install`
+
+**mcp server prompts**
+模型会根据指定的这个提示词模板生成回复内容
+<b class="success">Prompts 类型主要用于管理和优化模型推理时的提示词</b>
+
+```python
+@mcp.prompt
+async def weather_prompt(city:str, coutry_code:str=None, state_code:str="5", weather_desc:str):
+    """获取生成天气报告的提示模板
+    Args:
+        city (str): 城市名称
+        coutry_code (str, optional): 国家代码. Defaults to None.
+        state_code (str, optional): 州代码. Defaults to "5".
+        weather_desc (str): 天气描述
+        
+    Returns:
+        str: 格式化的天气文本
+    """
+    return f"""请根据以下信息生成天气报告：
+    城市：{city}
+    国家代码：{state_code}
+    州代码：{coutry_code}
+    天气描述：{weather_desc}
+
+    报告内容包括:
+    1. 天气概况
+    2. 地理位置
+    3. 给出出行建议
+    """
+```
+
+
+## context_cache
+原理：每次请求，系统会判断并查找请求的**前缀部分是否存储在缓存中**，并给出命中 Cache 的结果。命中cache的价格是**input正常价格的40%**。
+
+如何提示命中概率：Cache 的命中逻辑是**判断不同请求的前缀是否存在重复内容**，<b class="danger">将重合的内容放在提示词的开头，将不同的内容放在提示词的末尾。</b>
+
+对于视觉理解模型，如果不同的请求是**对同一个图像或视频提问**，将user message 中的 **图像（image）或视频（video）** 放在文本信息（text）**前面**会提高命中 Cache 的概率
+
+对不同的图像或视频**提问同一个问题**，则**文本信息**放在图像或视频**前面**会提高命中 Cache 的概率。
+
+
+不同请求有着相同的前缀信息，Context Cache 可以有效提升这些请求的推理速度，降低推理成本与首包延迟。
 
 
 
-
+## 前缀续写
+在某些场景中，可能需要大模型基于特定前缀来续写内容。比如超时后，返回的已生成内容并不完整，需要续写。
+需在messages数组中最后一条，添加一条角色为assistant的message，并指定`"partial": True`
+```python
+messages = [{
+    "role": "user",
+    "content": "请对“春天来了，大地”这句话进行续写，来表达春天的美好和作者的喜悦之情"
+},
+{
+    "role": "assistant",
+    "content": "春天来了，大地",
+    "partial": True
+}]
+```
 
 
 
