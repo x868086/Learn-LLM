@@ -27,9 +27,7 @@ async def get_weather_base(city, extensions="base"):
     params = {"key": weather_api_key, "city": city, "extensions": extensions}
     async with httpx.AsyncClient() as client:
         try:
-            response = await client.get(
-                "https://restapi.amap.com/v3/weather/weatherInfo", params=params
-            )
+            response = await client.get(weather_base_url, params=params)
             response.raise_for_status()
             return response
         except httpx.RequestError as exc:
